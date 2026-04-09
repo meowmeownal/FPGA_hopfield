@@ -160,15 +160,14 @@ q6_18_t sin_y0_om,  sin_y1_om,  sin_y2_om,  sin_y3_om,  sin_y4_om;
 q6_18_t tanh_y0_reg, tanh_y1_reg, tanh_y2_reg, tanh_y3_reg, tanh_y4_reg;
 q6_18_t sin_y0_reg,  sin_y1_reg,  sin_y2_reg,  sin_y3_reg,  sin_y4_reg;
 
-
 logic valid_tanh0, valid_tanh1, valid_tanh2, valid_tanh3, valid_tanh4;
 logic valid_sin0,  valid_sin1,  valid_sin2,  valid_sin3,  valid_sin4;
 
 logic valid_tanh0_reg, valid_tanh1_reg, valid_tanh2_reg, valid_tanh3_reg, valid_tanh4_reg;
 logic valid_sin0_reg,  valid_sin1_reg,  valid_sin2_reg,  valid_sin3_reg,  valid_sin4_reg;
 
-q6_18_t tanh_y0_buf, tanh_y1_buf, tanh_y2_buf, tanh_y3_buf, tanh_y4_buf;
-q6_18_t sin_y0_buf,  sin_y1_buf,  sin_y2_buf,  sin_y3_buf,  sin_y4_buf;
+// q6_18_t tanh_y0_buf, tanh_y1_buf, tanh_y2_buf, tanh_y3_buf, tanh_y4_buf;
+// q6_18_t sin_y0_buf,  sin_y1_buf,  sin_y2_buf,  sin_y3_buf,  sin_y4_buf;
 
 //----------------OM pętla------------------------
 fast_tanh th0 (
@@ -304,9 +303,10 @@ end
 logic start_pipe;
 
 localparam TANH_LATENCY = 25;  
-localparam SIN_LATENCY  = 30;  / 
-localparam MAX_LATENCY  = (TANH_LATENCY > SIN_LATENCY) ? TANH_LATENCY : SIN_LATENCY;
-logic [5:0] wait_cnt;
+localparam SIN_LATENCY  = 30;  
+localparam MAX_LATENCY  = 40;//(TANH_LATENCY > SIN_LATENCY) ? TANH_LATENCY : SIN_LATENCY;
+
+logic [5:0] wait_cnt; 
 
 always_ff @(posedge clk) begin
     if (rst) begin
@@ -355,22 +355,81 @@ always_ff @(posedge clk) begin
             start_pipe <= 1;
             wait_cnt <= 0;
 
-            // valid_tanh0_reg <= 0;
-            // valid_tanh1_reg <= 0;
-            // valid_tanh2_reg <= 0;
-            // valid_tanh3_reg <= 0;
-            // valid_tanh4_reg <= 0;
+            valid_tanh0_reg <= 0;
+            valid_tanh1_reg <= 0;
+            valid_tanh2_reg <= 0;
+            valid_tanh3_reg <= 0;
+            valid_tanh4_reg <= 0;
 
-            // valid_sin0_reg <= 0;
-            // valid_sin1_reg <= 0;
-            // valid_sin2_reg <= 0;
-            // valid_sin3_reg <= 0;
-            // valid_sin4_reg <= 0;
+            valid_sin0_reg <= 0;
+            valid_sin1_reg <= 0;
+            valid_sin2_reg <= 0;
+            valid_sin3_reg <= 0;
+            valid_sin4_reg <= 0;
 
             state<=WAIT_PIPE; //czekamy na wyniki
         end 
         WAIT_PIPE: begin
-            //start_pipe <= 0;
+
+            // start_pipe <= 0;
+            // if (valid_tanh0) begin
+            //     $display("WAIT_PIPE: tanh0=%h at t=%0t", tanh_y0_om, $time);
+            //     valid_tanh0_reg <= 1;
+            //     tanh_y0_reg <= tanh_y0_om;
+            // end
+            // if (valid_tanh1) begin
+            //     $display("WAIT_PIPE: tanh1=%h at t=%0t", tanh_y1_om, $time);
+            //     valid_tanh1_reg <= 1;
+            //     tanh_y1_reg <= tanh_y1_om;
+            // end
+            // if (valid_tanh2) begin
+            //     $display("WAIT_PIPE: tanh2=%h at t=%0t", tanh_y2_om, $time);
+            //     valid_tanh2_reg <= 1;
+            //     tanh_y2_reg <= tanh_y2_om;
+            // end
+            // if (valid_tanh3) begin
+            //     $display("WAIT_PIPE: tanh3=%h at t=%0t", tanh_y3_om, $time);
+            //     valid_tanh3_reg <= 1;
+            //     tanh_y3_reg <= tanh_y3_om;
+            // end
+            // if (valid_tanh4) begin
+            //     $display("WAIT_PIPE: tanh4=%h at t=%0t", tanh_y4_om, $time);
+            //     valid_tanh4_reg <= 1;
+            //     tanh_y4_reg <= tanh_y4_om;
+            // end
+            
+            // if (valid_sin0) begin
+            //     $display("WAIT_PIPE: sin0=%h at t=%0t", sin_y0_om, $time);
+            //     valid_sin0_reg <= 1;
+            //     sin_y0_reg <= sin_y0_om;
+            // end
+            // if (valid_sin1) begin
+            //     $display("WAIT_PIPE: sin1=%h at t=%0t", sin_y1_om, $time);
+            //     valid_sin1_reg <= 1;
+            //     sin_y1_reg <= sin_y1_om;
+            // end
+            // if (valid_sin2) begin
+            //     $display("WAIT_PIPE: sin2=%h at t=%0t", sin_y2_om, $time);
+            //     valid_sin2_reg <= 1;
+            //     sin_y2_reg <= sin_y2_om;
+            // end
+            // if (valid_sin3) begin
+            //     $display("WAIT_PIPE: sin3=%h at t=%0t", sin_y3_om, $time);
+            //     valid_sin3_reg <= 1;
+            //     sin_y3_reg <= sin_y3_om;
+            // end
+            // if (valid_sin4) begin
+            //     $display("WAIT_PIPE: sin4=%h at t=%0t", sin_y4_om, $time);
+            //     valid_sin4_reg <= 1;
+            //     sin_y4_reg <= sin_y4_om;
+            // end
+            
+            // if (valid_tanh0_reg && valid_tanh1_reg && valid_tanh2_reg &&
+            //     valid_tanh3_reg && valid_tanh4_reg &&
+            //     valid_sin0_reg  && valid_sin1_reg  && valid_sin2_reg &&
+            //     valid_sin3_reg  && valid_sin4_reg) begin
+                
+            //     state <= INIT_PIPE_MUL;
 
             if (wait_cnt < MAX_LATENCY) begin
                 wait_cnt <= wait_cnt +1;
@@ -379,101 +438,43 @@ always_ff @(posedge clk) begin
                 end
 
             end else begin
-                
-
-            // if(valid_tanh0)begin
-            //     valid_tanh0_reg <= 1;
-            //     tanh_y0_buf <= tanh_y0_om;
-            // end
-
-            // if(valid_tanh1)begin
-            //     valid_tanh1_reg <= 1;
-            //     tanh_y1_buf <= tanh_y1_om;
-            // end
-            // if(valid_tanh2)begin
-            //     valid_tanh2_reg <= 1;
-            //     tanh_y2_buf <= tanh_y2_om;
-            // end
-            // if(valid_tanh3)begin
-            //     valid_tanh3_reg <= 1;
-            //     tanh_y3_buf <= tanh_y3_om;
-            // end
-            // if(valid_tanh4)begin
-            //     valid_tanh4_reg <= 1;
-            //     tanh_y4_buf <= tanh_y4_om;
-            // end
-
-            // if(valid_sin0)begin
-            //     valid_sin0_reg <= 1;
-            //     sin_y0_buf <= sin_y0_om;
-            // end
-
-            // if(valid_sin1)begin
-            //     valid_sin1_reg <= 1;
-            //     sin_y1_buf <= sin_y1_om;
-            // end
-            // if(valid_sin2)begin
-            //     valid_sin2_reg <= 1;
-            //     sin_y2_buf <= sin_y2_om;
-            // end
-            // if(valid_sin3)begin
-            //     valid_sin3_reg <= 1;
-            //     sin_y3_buf <= sin_y3_om;
-            // end
-            // if(valid_sin4)begin
-            //     valid_sin4_reg <= 1;
-            //     sin_y4_buf <= sin_y4_om;
-            // end
-
             
-            // $display("SIN0=%h valid=%b", sin_y0_om, valid_sin0);
-            // $display("TANH0=%h valid=%b", tanh_y0_om, valid_tanh0);
-            
-            // $display("SIN1=%h valid=%b", sin_y1_om, valid_sin1);
-            // $display("TANH1=%h valid=%b", tanh_y1_om, valid_tanh1);
-            
-            // $display("SIN2=%h valid=%b", sin_y2_om, valid_sin2);
-            // $display("TANH2=%h valid=%b", tanh_y2_om, valid_tanh2);
-            
-            // $display("SIN3=%h valid=%b", sin_y3_om, valid_sin3);
-            // $display("TANH3=%h valid=%b", tanh_y3_om, valid_tanh3);
-            
-            // $display("SIN4=%h valid=%b", sin_y4_om, valid_sin4);
-            // $display("TANH4=%h valid=%b", tanh_y4_om, valid_tanh4);
-            
+                valid_tanh0_reg <= 1;
+                tanh_y0_reg <= tanh_y0_om;
 
-            if (valid_tanh0_reg && valid_tanh1_reg && valid_tanh2_reg &&
-                valid_tanh3_reg && valid_tanh4_reg &&
-                valid_sin0_reg  && valid_sin1_reg  && valid_sin2_reg &&
-                valid_sin3_reg  && valid_sin4_reg) begin
+                valid_tanh1_reg <= 1;
+                tanh_y1_reg <= tanh_y1_om;
 
-                tanh_y0_reg <= tanh_y0_buf;
-                tanh_y1_reg <= tanh_y1_buf;
-                tanh_y2_reg <= tanh_y2_buf;
-                tanh_y3_reg <= tanh_y3_buf;
-                tanh_y4_reg <= tanh_y4_buf;
-                
-                sin_y0_reg <= sin_y0_buf;
-                sin_y1_reg <= sin_y1_buf;
-                sin_y2_reg <= sin_y2_buf;
-                sin_y3_reg <= sin_y3_buf;
-                sin_y4_reg <= sin_y4_buf;
+                valid_tanh2_reg <= 1;
+                tanh_y2_reg <= tanh_y2_om;
 
-                valid_tanh0_reg <= 0;
-                valid_tanh1_reg <= 0;
-                valid_tanh2_reg <= 0;
-                valid_tanh3_reg <= 0;
-                valid_tanh4_reg <= 0;
+                valid_tanh3_reg <= 1;
+                tanh_y3_reg <= tanh_y3_om;
 
-                valid_sin0_reg <= 0;
-                valid_sin1_reg <= 0;
-                valid_sin2_reg <= 0;
-                valid_sin3_reg <= 0;
-                valid_sin4_reg <= 0;
+                valid_tanh4_reg <= 1;
+                tanh_y4_reg <= tanh_y4_om;
 
-                state <= INIT_PIPE_MUL; 
+                valid_sin0_reg <= 1;
+                sin_y0_reg <= sin_y0_om;
+
+                valid_sin1_reg <= 1;
+                sin_y1_reg <= sin_y1_om;
+
+                valid_sin2_reg <= 1;
+                sin_y2_reg <= sin_y2_om;
+
+                valid_sin3_reg <= 1;
+                sin_y3_reg <= sin_y3_om;
+
+                valid_sin4_reg <= 1;
+                sin_y4_reg <= sin_y4_om;
+
+
+               state <= INIT_PIPE_MUL;
             end
+                 
         end
+        
         INIT_PIPE_MUL: begin
 
             tmp1 <= (a1 * tanh_y2_reg) >>> 18;
@@ -559,6 +560,7 @@ always_ff @(posedge clk) begin
         end
         OM_START: begin
             start_pipe <= 1;
+            wait_cnt <= 0;
 
             valid_tanh0_reg <= 0;
             valid_tanh1_reg <= 0;
@@ -589,93 +591,109 @@ always_ff @(posedge clk) begin
             state <= OM_WAIT;
         end
         OM_WAIT: begin
-            start_pipe <= 0;
-            // pipe_cnt <= pipe_cnt + 1;
 
-            // if (pipe_cnt == 5) begin // do dostosowania
-            //     state <= OM_MUL;
+            // start_pipe <= 0;
+
+            // if (valid_tanh0) begin
+            //     $display("OM_WAIT: tanh0=%h at t=%0t", tanh_y0_om, $time);
+            //     valid_tanh0_reg <= 1;
+            //     tanh_y0_reg <= tanh_y0_om;
             // end
-            // if (valid_tanh0 && valid_tanh1 && valid_tanh2 &&
-            //     valid_tanh3 && valid_tanh4 &&
-            //     valid_sin0  && valid_sin1  && valid_sin2 &&
-            //     valid_sin3  && valid_sin4) begin
-            //     state <= OM_MUL;
+            // if (valid_tanh1) begin
+            //     $display("OM_WAIT: tanh1=%h at t=%0t", tanh_y1_om, $time);
+            //     valid_tanh1_reg <= 1;
+            //     tanh_y1_reg <= tanh_y1_om;
             // end
-
-            if(valid_tanh0)begin
-                valid_tanh0_reg <= 1;
-                tanh_y0_buf <= tanh_y0_om;
-            end
-
-            if(valid_tanh1)begin
-                valid_tanh1_reg <= 1;
-                tanh_y1_buf <= tanh_y1_om;
-            end
-            if(valid_tanh2)begin
-                valid_tanh2_reg <= 1;
-                tanh_y2_buf <= tanh_y2_om;
-            end
-            if(valid_tanh3)begin
-                valid_tanh3_reg <= 1;
-                tanh_y3_buf <= tanh_y3_om;
-            end
-            if(valid_tanh4)begin
-                valid_tanh4_reg <= 1;
-                tanh_y4_buf <= tanh_y4_om;
-            end
-
-            if(valid_sin0)begin
-                valid_sin0_reg <= 1;
-                sin_y0_buf <= sin_y0_om;
-            end
-
-            if(valid_sin1)begin
-                valid_sin1_reg <= 1;
-                sin_y1_buf <= sin_y1_om;
-            end
-            if(valid_sin2)begin
-                valid_sin2_reg <= 1;
-                sin_y2_buf <= sin_y2_om;
-            end
-            if(valid_sin3)begin
-                valid_sin3_reg <= 1;
-                sin_y3_buf <= sin_y3_om;
-            end
-            if(valid_sin4)begin
-                valid_sin4_reg <= 1;
-                sin_y4_buf <= sin_y4_om;
-            end
-
-            if (valid_tanh0_reg && valid_tanh1_reg && valid_tanh2_reg &&
-                valid_tanh3_reg && valid_tanh4_reg &&
-                valid_sin0_reg  && valid_sin1_reg  && valid_sin2_reg &&
-                valid_sin3_reg  && valid_sin4_reg) begin
-
-                tanh_y0_reg <= tanh_y0_buf;
-                tanh_y1_reg <= tanh_y1_buf;
-                tanh_y2_reg <= tanh_y2_buf;
-                tanh_y3_reg <= tanh_y3_buf;
-                tanh_y4_reg <= tanh_y4_buf;
+            // if (valid_tanh2) begin
+            //     $display("OM_WAIT: tanh2=%h at t=%0t", tanh_y2_om, $time);
+            //     valid_tanh2_reg <= 1;
+            //     tanh_y2_reg <= tanh_y2_om;
+            // end
+            // if (valid_tanh3) begin
+            //     $display("OM_WAIT: tanh3=%h at t=%0t", tanh_y3_om, $time);
+            //     valid_tanh3_reg <= 1;
+            //     tanh_y3_reg <= tanh_y3_om;
+            // end
+            // if (valid_tanh4) begin
+            //     $display("OM_WAIT: tanh4=%h at t=%0t", tanh_y4_om, $time);
+            //     valid_tanh4_reg <= 1;
+            //     tanh_y4_reg <= tanh_y4_om;
+            // end
+            
+            // if (valid_sin0) begin
+            //     $display("OM_WAIT: sin0=%h at t=%0t", sin_y0_om, $time);
+            //     valid_sin0_reg <= 1;
+            //     sin_y0_reg <= sin_y0_om;
+            // end
+            // if (valid_sin1) begin
+            //     $display("OM_WAIT: sin1=%h at t=%0t", sin_y1_om, $time);
+            //     valid_sin1_reg <= 1;
+            //     sin_y1_reg <= sin_y1_om;
+            // end
+            // if (valid_sin2) begin
+            //     $display("OM_WAIT: sin2=%h at t=%0t", sin_y2_om, $time);
+            //     valid_sin2_reg <= 1;
+            //     sin_y2_reg <= sin_y2_om;
+            // end
+            // if (valid_sin3) begin
+            //     $display("OM_WAIT: sin3=%h at t=%0t", sin_y3_om, $time);
+            //     valid_sin3_reg <= 1;
+            //     sin_y3_reg <= sin_y3_om;
+            // end
+            // if (valid_sin4) begin
+            //     $display("OM_WAIT: sin4=%h at t=%0t", sin_y4_om, $time);
+            //     valid_sin4_reg <= 1;
+            //     sin_y4_reg <= sin_y4_om;
+            // end
+            
+            // if (valid_tanh0_reg && valid_tanh1_reg && valid_tanh2_reg &&
+            //     valid_tanh3_reg && valid_tanh4_reg &&
+            //     valid_sin0_reg  && valid_sin1_reg  && valid_sin2_reg &&
+            //     valid_sin3_reg  && valid_sin4_reg) begin
                 
-                sin_y0_reg <= sin_y0_buf;
-                sin_y1_reg <= sin_y1_buf;
-                sin_y2_reg <= sin_y2_buf;
-                sin_y3_reg <= sin_y3_buf;
-                sin_y4_reg <= sin_y4_buf;
+            //     state <= OM_MUL;
+            //-----------------------------------------------------------
+ 
+            if (wait_cnt < MAX_LATENCY) begin
+                wait_cnt <= wait_cnt +1;
+                if(wait_cnt == 0) begin
+                    start_pipe <= 0;
+                end
 
-                valid_tanh0_reg <= 0;
-                valid_tanh1_reg <= 0;
-                valid_tanh2_reg <= 0;
-                valid_tanh3_reg <= 0;
-                valid_tanh4_reg <= 0;
+            end else begin
+            
+                valid_tanh0_reg <= 1;
+                tanh_y0_reg <= tanh_y0_om;
 
-                valid_sin0_reg <= 0;
-                valid_sin1_reg <= 0;
-                valid_sin2_reg <= 0;
-                valid_sin3_reg <= 0;
-                valid_sin4_reg <= 0;
+                valid_tanh1_reg <= 1;
+                tanh_y1_reg <= tanh_y1_om;
+
+                valid_tanh2_reg <= 1;
+                tanh_y2_reg <= tanh_y2_om;
+
+                valid_tanh3_reg <= 1;
+                tanh_y3_reg <= tanh_y3_om;
+
+                valid_tanh4_reg <= 1;
+                tanh_y4_reg <= tanh_y4_om;
+
+                valid_sin0_reg <= 1;
+                sin_y0_reg <= sin_y0_om;
+
+                valid_sin1_reg <= 1;
+                sin_y1_reg <= sin_y1_om;
+
+                valid_sin2_reg <= 1;
+                sin_y2_reg <= sin_y2_om;
+
+                valid_sin3_reg <= 1;
+                sin_y3_reg <= sin_y3_om;
+
+                valid_sin4_reg <= 1;
+                sin_y4_reg <= sin_y4_om;
 
                 state <= OM_MUL; 
+   
             end
         end
 
