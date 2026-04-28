@@ -30,11 +30,11 @@ localparam int N = 5; //liczba neuronow
     end
     //---------------------------------------------------------------------------
 
-    q8_24_t y0  [0:T];
-    q8_24_t y1  [0:T];
-    q8_24_t y2  [0:T];
-    q8_24_t y3  [0:T];
-    q8_24_t y4  [0:T];
+    logic signed [39:0] y0  [0:T];
+    logic signed [39:0] y1  [0:T];
+    logic signed [39:0] y2  [0:T];
+    logic signed [39:0] y3  [0:T];
+    logic signed [39:0] y4  [0:T];
 
     logic signed [55:0] y0_sum [0:T];
     logic signed [55:0]  y1_sum [0:T];
@@ -45,11 +45,11 @@ localparam int N = 5; //liczba neuronow
     // logic signed [55:0] y0_hold, y1_hold, y2_hold, y3_hold, y4_hold;
 
 initial begin
-    y0[0] = 32'sd13421773; ///0.8
-    y1[0] = 32'sd5033165;  //0.3
-    y2[0] = 32'sd6710886;  //0.4
-    y3[0] = 32'sd10066330;  //0.6
-    y4[0] = 32'sd11744051; //0.7
+    y0[0] = 40'sd13421773; ///0.8
+    y1[0] = 40'sd5033165;  //0.3
+    y2[0] = 40'sd6710886;  //0.4
+    y3[0] = 40'sd10066330;  //0.6
+    y4[0] = 40'sd11744051; //0.7
 end 
 
 initial begin
@@ -77,7 +77,7 @@ logic [12:0] om;
 
 logic [12:0] r;
 
-logic signed [55:0] acc0, acc1, acc2, acc3, acc4; //do przechowywania w danej chwili wartosci neuronow
+logic signed [71:0] acc0, acc1, acc2, acc3, acc4; //do przechowywania w danej chwili wartosci neuronow
 
 q8_24_t tanh_y0_reg, tanh_y1_reg, tanh_y2_reg, tanh_y3_reg, tanh_y4_reg;
 q8_24_t sin_y0_reg,  sin_y1_reg,  sin_y2_reg,  sin_y3_reg,  sin_y4_reg;
@@ -179,7 +179,7 @@ localparam SIN_LATENCY  = 12;
 logic start_pipe;
 logic [2:0] neuron_num; 
 
-q8_24_t neuron_in;
+logic signed [39:0] neuron_in;
 always_comb begin
     case(neuron_num)
         3'd0: neuron_in = current_y0; 
@@ -268,7 +268,7 @@ logic signed [39:0] m30_shift;
 logic signed [39:0] m41_shift;
 
 logic signed [79:0] mul_0, mul_1, mul_2, mul_3, mul_4;
-logic signed [55:0] scaled_0, scaled_1, scaled_2, scaled_3, scaled_4;
+logic signed [71:0] scaled_0, scaled_1, scaled_2, scaled_3, scaled_4;
 
 q8_24_t f1 = 32'sd0;
 q8_24_t f3 = 32'sd0;
@@ -440,24 +440,25 @@ always_ff @(posedge clk) begin
 
        INIT_PIPE_MUL2: begin 
 
-            tmp1_shift <= (tmp1 ) >>> 24;
-            tmp2_shift <= (tmp2 ) >>> 24;
+        
+            tmp1_shift <= (tmp1 + 64'sd8388608 ) >>> 24;
+            tmp2_shift <= (tmp2 + 64'sd8388608) >>> 24;
 
-            m01_shift <= (m01 ) >>> 24;  //40 -> Q16.24
-            m02_shift <= (m02 ) >>> 24; 
-            m03_shift <= (m03 ) >>> 24;
+            m01_shift <= (m01 + 64'sd8388608) >>> 24;  //40 -> Q16.24
+            m02_shift <= (m02 + 64'sd8388608) >>> 24; 
+            m03_shift <= (m03 + 64'sd8388608) >>> 24;
 
-            m10_shift <= (m10 ) >>> 24; 
-            m12_shift <= (m12 ) >>> 24; 
-            m14_shift <= (m14 ) >>> 24; 
+            m10_shift <= (m10 + 64'sd8388608) >>> 24; 
+            m12_shift <= (m12 + 64'sd8388608) >>> 24; 
+            m14_shift <= (m14 + 64'sd8388608) >>> 24; 
 
-            m20_shift <= (m20 ) >>> 24; 
-            m21_shift <= (m21 ) >>> 24;
-            m22_shift <=  (m22 ) >>> 24;
+            m20_shift <= (m20 + 64'sd8388608) >>> 24; 
+            m21_shift <= (m21 + 64'sd8388608) >>> 24;
+            m22_shift <=  (m22 + 64'sd8388608) >>> 24;
 
-            m30_shift <= (m30 ) >>> 24;
+            m30_shift <= (m30 + 64'sd8388608) >>> 24;
 
-            m41_shift <= (m41 ) >>> 24;
+            m41_shift <= (m41 + 64'sd8388608) >>> 24;
 
 
         state <= INIT_PIPE_G1G2; 
@@ -488,8 +489,8 @@ always_ff @(posedge clk) begin
        end
 
         INIT_GSINGTANH_SHIFT: begin
-            G1tanh <= (G1_tmp ) >>> 24;
-            G2sin  <= (G2_tmp ) >>> 24;
+            G1tanh <= (G1_tmp + 72'sd8388608) >>> 24;
+            G2sin  <= (G2_tmp + 72'sd8388608) >>> 24;
             state <= INIT_PIPE_SUM;
 
         end
@@ -552,11 +553,11 @@ always_ff @(posedge clk) begin
             // $display("y4_sum[%0d] = %f, om = %0d, bg_lut[%0d] = %f, mul_4 = %f\n", r-1, real'(y4_sum[r-1])/16777216.0,  om, (om-r), real'(bg_lut[(om-r)])/16777216.0,  real'(mul_4)/281474976710656.0);
 
 
-            scaled_0 <= (mul_0 ) >>> 24; //80 - 24 -> 56
-            scaled_1 <= (mul_1 ) >>> 24;
-            scaled_2 <= (mul_2 ) >>> 24;
-            scaled_3 <= (mul_3 ) >>> 24;
-            scaled_4 <= (mul_4 ) >>> 24;
+            scaled_0 <= (mul_0 + 80'sd8388608) >>> 24; //80 - 24 -> 56
+            scaled_1 <= (mul_1 + 80'sd8388608) >>> 24;
+            scaled_2 <= (mul_2 + 80'sd8388608) >>> 24;
+            scaled_3 <= (mul_3 + 80'sd8388608) >>> 24;
+            scaled_4 <= (mul_4 + 80'sd8388608) >>> 24;
 
             state <= LOOP_R;
         end
@@ -572,7 +573,7 @@ always_ff @(posedge clk) begin
             //     real'(acc0)/262144.0,
             //     real'(acc0 + scaled_0)/262144.0);
 
-            acc0 <= acc0 + scaled_0;  //65 -> 66
+            acc0 <= acc0 + scaled_0;  //acc -> 72, scaled 72
             acc1 <= acc1 + scaled_1; 
             acc2 <= acc2 + scaled_2; 
             acc3 <= acc3 + scaled_3;
@@ -588,17 +589,21 @@ always_ff @(posedge clk) begin
 
         FINALIZE: 
         begin
-            // $display("FINALIZE START: om=%0d", om);
-            // $display("HDL y0[%0d] =%f, y1[%0d] = %f, y2[%0d] = %f, y3[%0d] = %f, y4[%0d] = %f", om, 
-            //     real' (acc0 + y0[0]) /16777216.0, om,real' (acc1 + y1[0]) /16777216.0, om, real' (acc2+ y2[0]) /16777216.0, om, (acc3 + y3[0]) /16777216.0, om, (acc4 + y4[0]) /16777216.0 );
-            // $display("HDL current_y0 =%f, current_y1 = %f, current_y2 = %f, current_y3 = %f, current_y4 = %f", om, 
-            //     real' (current_y0) /16777216.0, om,real' (current_y1) /16777216.0, om, real' (current_y2) /16777216.0, om, (current_y3) /16777216.0, om, (current_y4) /16777216.0 );
+            $display("FINALIZE START: om=%0d", om);
+            $display("HDL y0[%0d] =%f, y1[%0d] = %f, y2[%0d] = %f, y3[%0d] = %f, y4[%0d] = %f", om, 
+                real' ($signed(acc0[39:0]) + $signed(y0[0])) /16777216.0, om,real' ($signed(acc1[39:0]) + $signed(y1[0])) /16777216.0, om, real' ($signed(acc2[39:0])+ $signed(y2[0])) /16777216.0, om, ($signed(acc3[39:0]) + $signed(y3[0])) /16777216.0, om, ($signed(acc4[39:0]) + $signed(y4[0])) /16777216.0 );
 
-            y0[om] <= acc0   + y0[0];
-            y1[om] <= acc1   + y1[0];
-            y2[om] <= acc2   + y2[0];
-            y3[om] <= acc3   + y3[0];
-            y4[om] <= acc4   + y4[0];
+            // $display("acc0 full = %h, acc0[55:0] as float = %f, acc0[31:0] as float = %f, acc0[71:0] as float = %f",
+            //     acc0,
+            //     real'(acc0[55:0]) / 16777216.0,
+            //     real'(acc0[31:0]) / 16777216.0 ,
+            //     real'(acc0[71:0]) / 16777216.0);
+
+            y0[om] <= $signed(acc0[39:0]) + $signed(y0[0]);
+            y1[om] <= $signed(acc1[39:0])   + $signed(y1[0]);
+            y2[om] <= $signed(acc2[39:0]) + $signed(y2[0]);
+            y3[om] <= $signed(acc3[39:0]) + $signed(y3[0]);
+            y4[om] <= $signed(acc4[39:0]) + $signed(y4[0]);
 
             state <= OM_START; //SEND;
         end
@@ -688,24 +693,24 @@ always_ff @(posedge clk) begin
 
         OM_MUL2: begin
 
-            tmp1_shift <= (tmp1 ) >>> 24;
-            tmp2_shift <= (tmp2 ) >>> 24;
+            tmp1_shift <= (tmp1 + 64'sd8388608) >>> 24;
+            tmp2_shift <= (tmp2 + 64'sd8388608) >>> 24;
 
-            m01_shift <= (m01 ) >>> 24;  //40 -> Q16.24
-            m02_shift <= (m02 ) >>> 24; 
-            m03_shift <= (m03 ) >>> 24;
+            m01_shift <= (m01 + 64'sd8388608) >>> 24;  //40 -> Q16.24
+            m02_shift <= (m02 + 64'sd8388608) >>> 24; 
+            m03_shift <= (m03 + 64'sd8388608) >>> 24;
 
-            m10_shift <= (m10 ) >>> 24; 
-            m12_shift <= (m12 ) >>> 24; 
-            m14_shift <= (m14 ) >>> 24; 
+            m10_shift <= (m10 + 64'sd8388608) >>> 24; 
+            m12_shift <= (m12 + 64'sd8388608) >>> 24; 
+            m14_shift <= (m14 + 64'sd8388608) >>> 24; 
 
-            m20_shift <= (m20 ) >>> 24; 
-            m21_shift <= (m21 ) >>> 24;
-            m22_shift <=  (m22 ) >>> 24;
+            m20_shift <= (m20 + 64'sd8388608) >>> 24; 
+            m21_shift <= (m21 + 64'sd8388608) >>> 24;
+            m22_shift <=  (m22 + 64'sd8388608) >>> 24;
 
-            m30_shift <= (m30 ) >>> 24;
+            m30_shift <= (m30 + 64'sd8388608) >>> 24;
 
-            m41_shift <= (m41 ) >>> 24;
+            m41_shift <= (m41 + 64'sd8388608) >>> 24;
 
             state<= OM_G1G2;
         end
@@ -727,8 +732,8 @@ always_ff @(posedge clk) begin
         end
 
         OM_GSINGTANH_SHIFT: begin
-            G1tanh <= (G1_tmp ) >>> 24;
-            G2sin  <= (G2_tmp ) >>> 24;
+            G1tanh <= (G1_tmp + 72'sd8388608) >>> 24;
+            G2sin  <= (G2_tmp + 72'sd8388608) >>> 24;
             
             state <= OM_SUM;
         end
@@ -746,11 +751,11 @@ always_ff @(posedge clk) begin
        end
 
         SEND: begin
-            sample_out.y0 <= y0[om];
-            sample_out.y1 <= y1[om];
-            sample_out.y2 <= y2[om];
-            sample_out.y3 <= y3[om];
-            sample_out.y4 <= y4[om];
+            sample_out.y0 <= y0[om][31:0];
+            sample_out.y1 <= y1[om][31:0];
+            sample_out.y2 <= y2[om][31:0];
+            sample_out.y3 <= y3[om][31:0];
+            sample_out.y4 <= y4[om][31:0];
             sample_out.dt <= 0;
 
             sample_send <= 1;
