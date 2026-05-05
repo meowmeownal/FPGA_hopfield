@@ -24,7 +24,7 @@ localparam logic [7:0] ADDR1 = 8'h61 << 1;
 localparam int N = 5; //liczba neuronow
 
 //logic signed [47:0]
-    (* rom_style = "block" *) q8_24_t  bg_lut [0:5000];
+    (* rom_style = "block" *) q6_26_t  bg_lut [0:5000];
     initial begin
         $readmemh("bg_lut.mem", bg_lut);
     end
@@ -45,11 +45,11 @@ localparam int N = 5; //liczba neuronow
     // logic signed [55:0] y0_hold, y1_hold, y2_hold, y3_hold, y4_hold;
 
 initial begin
-    y0[0] = 40'sd13421773; ///0.8
-    y1[0] = 40'sd5033165;  //0.3
-    y2[0] = 40'sd6710886;  //0.4
-    y3[0] = 40'sd10066330;  //0.6
-    y4[0] = 40'sd11744051; //0.7
+    y0[0] = 40'sd53687091; //.24->.26   //sd13421773; //0.8
+    y1[0] = 40'sd20132659;              //sd5033165;  //0.3
+    y2[0] = 40'sd26843546;              //sd6710886;  //0.4
+    y3[0] = 40'sd40265318;              //sd10066330;  //0.6
+    y4[0] = 40'sd46976205;              //sd11744051; //0.7
 end 
 
 initial begin
@@ -79,45 +79,45 @@ logic [12:0] r;
 
 logic signed [71:0] acc0, acc1, acc2, acc3, acc4; //do przechowywania w danej chwili wartosci neuronow
 
-q8_24_t tanh_y0_reg, tanh_y1_reg, tanh_y2_reg, tanh_y3_reg, tanh_y4_reg;
-q8_24_t sin_y0_reg,  sin_y1_reg,  sin_y2_reg,  sin_y3_reg,  sin_y4_reg;
+q6_26_t tanh_y0_reg, tanh_y1_reg, tanh_y2_reg, tanh_y3_reg, tanh_y4_reg;
+q6_26_t sin_y0_reg,  sin_y1_reg,  sin_y2_reg,  sin_y3_reg,  sin_y4_reg;
 
 // logic valid_tanh0_reg, valid_tanh1_reg, valid_tanh2_reg, valid_tanh3_reg, valid_tanh4_reg;
 // logic valid_sin0_reg,  valid_sin1_reg,  valid_sin2_reg,  valid_sin3_reg,  valid_sin4_reg;
 
-q8_24_t pipe_y0, pipe_y1, pipe_y2, pipe_y3, pipe_y4;
+q6_26_t pipe_y0, pipe_y1, pipe_y2, pipe_y3, pipe_y4;
 
-q8_24_t current_y0;
-q8_24_t current_y1;
-q8_24_t current_y2;
-q8_24_t current_y3;
-q8_24_t current_y4;
+q6_26_t current_y0;
+q6_26_t current_y1;
+q6_26_t current_y2;
+q6_26_t current_y3;
+q6_26_t current_y4;
 
 
 //---------------WEIGHTS MATRIX----------------------------------
-q8_24_t weights [0:N-1][0:N-1];
+q6_26_t weights [0:N-1][0:N-1];
 initial begin
     weights[0][0] = 32'sd0;
-    weights[0][1] = -32'sd5033165;   // -3.0 * 2^24
-    weights[0][2] = -32'sd13421773;  // -0.8
-    weights[0][3] = -32'sd10066330;  // -0.6
+    weights[0][1] = -32'sd20132659;  //.24 -> .26  //5033165;   // -0.3 * 2^24
+    weights[0][2] = -32'sd53687091;                 //13421773;  // -0.8
+    weights[0][3] = -32'sd40265318;                 //10066330;  // -0.6
     weights[0][4] = 32'sd0;
 
-    weights[1][0] = -32'sd50331648;  // -3.0
+    weights[1][0] = -32'sd201326592;                //50331648;  // -3.0
     weights[1][1] = 32'sd0;
-    weights[1][2] = 32'sd33554432;   // 2.0
+    weights[1][2] = 32'sd134217728;                 //33554432;   // 2.0
     weights[1][3] = 32'sd0;
-    weights[1][4] = 32'sd6710886;   // 0.4
+    weights[1][4] = 32'sd26843546;                  //6710886;   // 0.4
 
     
-    weights[2][0] = 32'sd28521267; //1.7
-    weights[2][1] = -32'sd6710886;  //-0.4
-    weights[2][2] = 32'sd50331648;  //3.0
+    weights[2][0] = 32'sd114085069;                 //28521267; //1.7
+    weights[2][1] = -32'sd26843546;                 //6710886;  //-0.4
+    weights[2][2] = 32'sd201326592;                 //50331648;  //3.0
     weights[2][3] = 32'sd0;
     weights[2][4] = 32'sd0;
 
     
-    weights[3][0] = 32'sd11744051; //0.7
+    weights[3][0] = 32'sd46976205;                  //11744051; //0.7
     weights[3][1] = 32'sd0;
     weights[3][2] = 32'sd0;  
     weights[3][3] = 32'sd0;
@@ -125,7 +125,7 @@ initial begin
 
     
     weights[4][0] = 32'sd0;  //0
-    weights[4][1] = 32'sd28521267; //1.7
+    weights[4][1] = 32'sd114085069;                 //28521267; //1.7
     weights[4][2] = 32'sd0;   // 0
     weights[4][3] = 32'sd0;
     weights[4][4] = 32'sd0; 
@@ -173,13 +173,13 @@ state_t state;
 
 //---------------------------------------
 
-localparam TANH_LATENCY = 12;  //tanh delay
-localparam SIN_LATENCY  = 12;  
+localparam TANH_LATENCY = 13;  //tanh delay
+localparam SIN_LATENCY  = 13;  
 
 logic start_pipe;
 logic [2:0] neuron_num; 
 
-logic signed [39:0] neuron_in;
+logic signed [31:0] neuron_in;
 always_comb begin
     case(neuron_num)
         3'd0: neuron_in = current_y0; 
@@ -191,7 +191,7 @@ always_comb begin
     endcase
 end
 
-q8_24_t tanh_out, sin_out;
+q6_26_t tanh_out, sin_out;
 logic valid_tanh, valid_sin;
 
 fast_tanh th (
@@ -214,9 +214,9 @@ fast_sin s (
 
 //----------------------
 
-// q8_24_t dupa = 32'sd7214203;
+// q6_26_t dupa = 32'sd30198989;
 // logic start_test;
-// q8_24_t tanh_out_test, sin_out_test;
+// q6_26_t tanh_out_test, sin_out_test;
 // logic valid_sin_test, valid_tanh_test;
 
 
@@ -247,9 +247,13 @@ fast_sin s (
 //         start_test <= 1;
 //         cnt <= cnt + 1;
 
-//         if (cnt == 5) begin
-//              $display("tanh(0.5) = %h, real = 0.462 , sin(0.5) = %h, real is 0.479",tanh_out_test, sin_out_test );
-//         end
+//     if (valid_tanh_test) begin
+//         $display("tanh(0.45) = %f, real = 0.421899", real'(tanh_out_test) / 67108864.0);
+//     end
+//     if (valid_sin_test) begin
+//         $display("sin(0.45) = %f, real = 0.434965", real'(sin_out_test) / 67108864.0);
+//     end
+
 //     end
 // end
 
@@ -267,14 +271,14 @@ logic signed [39:0] m20_shift, m21_shift, m22_shift;
 logic signed [39:0] m30_shift;
 logic signed [39:0] m41_shift;
 
-logic signed [79:0] mul_0, mul_1, mul_2, mul_3, mul_4;
+logic signed [87:0] mul_0, mul_1, mul_2, mul_3, mul_4;
 logic signed [71:0] scaled_0, scaled_1, scaled_2, scaled_3, scaled_4;
 
-q8_24_t f1 = 32'sd0;
-q8_24_t f3 = 32'sd0;
-q8_24_t a1 = -32'sd36909875;  //-2.2
-q8_24_t a2 = 32'sd50331648;  //changing that 3.0
-q8_24_t a3 = 32'sd20132659; //1.2
+q6_26_t f1 = 32'sd0;
+q6_26_t f3 = 32'sd0;
+q6_26_t a1 = -32'sd147639501;  //.24 -> .26     //36909875;  //-2.2
+q6_26_t a2 = 32'sd201326592;                    //50331648;  //changing that 3.0
+q6_26_t a3 = 32'sd80530637;                     //20132659; //1.2
 
 logic signed [39:0] tmp1_shift, tmp2_shift;
 logic signed [63:0] tmp1, tmp2;
@@ -441,24 +445,24 @@ always_ff @(posedge clk) begin
        INIT_PIPE_MUL2: begin 
 
         
-            tmp1_shift <= (tmp1 + 64'sd8388608 ) >>> 24;
-            tmp2_shift <= (tmp2 + 64'sd8388608) >>> 24;
+            tmp1_shift <= (tmp1 + 64'sd33554432 ) >>> 26;
+            tmp2_shift <= (tmp2 + 64'sd33554432) >>> 26;
 
-            m01_shift <= (m01 + 64'sd8388608) >>> 24;  //40 -> Q16.24
-            m02_shift <= (m02 + 64'sd8388608) >>> 24; 
-            m03_shift <= (m03 + 64'sd8388608) >>> 24;
+            m01_shift <= (m01 + 64'sd33554432) >>> 26;  
+            m02_shift <= (m02 + 64'sd33554432) >>> 26; 
+            m03_shift <= (m03 + 64'sd33554432) >>> 26;
 
-            m10_shift <= (m10 + 64'sd8388608) >>> 24; 
-            m12_shift <= (m12 + 64'sd8388608) >>> 24; 
-            m14_shift <= (m14 + 64'sd8388608) >>> 24; 
+            m10_shift <= (m10 + 64'sd33554432) >>> 26; 
+            m12_shift <= (m12 + 64'sd33554432) >>> 26; 
+            m14_shift <= (m14 + 64'sd33554432) >>> 26; 
 
-            m20_shift <= (m20 + 64'sd8388608) >>> 24; 
-            m21_shift <= (m21 + 64'sd8388608) >>> 24;
-            m22_shift <=  (m22 + 64'sd8388608) >>> 24;
+            m20_shift <= (m20 + 64'sd33554432) >>> 26; 
+            m21_shift <= (m21 + 64'sd33554432) >>> 26;
+            m22_shift <=  (m22 + 64'sd33554432) >>> 26;
 
-            m30_shift <= (m30 + 64'sd8388608) >>> 24;
+            m30_shift <= (m30 + 64'sd33554432) >>> 26;
 
-            m41_shift <= (m41 + 64'sd8388608) >>> 24;
+            m41_shift <= (m41 + 64'sd33554432) >>> 26;
 
 
         state <= INIT_PIPE_G1G2; 
@@ -476,7 +480,7 @@ always_ff @(posedge clk) begin
         //  $display("weights[0][3] = %f, sin[y3] = %f, y3[om] = %f, m03 = %f\n", real'(weights[0][3])/16777216.0, real'(sin_y3_reg)/16777216.0, real'(current_y3)/16777216.0,  real'(m03_shift)/16777216.0);
         //  $display("weights[2][0] = %f, tanh[y0] = %f, y0[om] = %f, m20 = %f\n", real'(weights[2][0])/16777216.0, real'(tanh_y0_reg)/16777216.0, real'(current_y0)/16777216.0,  real'(m20_shift)/16777216.0);
 
-        G1r0 <= 32'sd16777216 - tmp1_shift;  //40
+        G1r0 <= 32'sd67108864 - tmp1_shift;  //40
         G2r0 <= a2 - tmp2_shift; //40
 
         state <= INIT_GSINGTANH; 
@@ -489,8 +493,8 @@ always_ff @(posedge clk) begin
        end
 
         INIT_GSINGTANH_SHIFT: begin
-            G1tanh <= (G1_tmp + 72'sd8388608) >>> 24;
-            G2sin  <= (G2_tmp + 72'sd8388608) >>> 24;
+            G1tanh <= (G1_tmp + 72'sd33554432) >>> 26;
+            G2sin  <= (G2_tmp + 72'sd33554432) >>> 26;
             state <= INIT_PIPE_SUM;
 
         end
@@ -535,7 +539,7 @@ always_ff @(posedge clk) begin
             state <= MUL_ACC;//LOOP_R;
         end
         MUL_ACC: begin 
-            mul_0 <= (y0_sum[r-1]) * (bg_lut[(om - r)]); //48 + 32 = 80
+            mul_0 <= (y0_sum[r-1]) * (bg_lut[(om - r)]); //55 + 32 = 87
             mul_1 <= (y1_sum[r-1]) * (bg_lut[(om - r)]);
             mul_2 <= (y2_sum[r-1]) * (bg_lut[(om - r)]);
             mul_3 <= (y3_sum[r-1]) * (bg_lut[(om - r)]);
@@ -553,11 +557,11 @@ always_ff @(posedge clk) begin
             // $display("y4_sum[%0d] = %f, om = %0d, bg_lut[%0d] = %f, mul_4 = %f\n", r-1, real'(y4_sum[r-1])/16777216.0,  om, (om-r), real'(bg_lut[(om-r)])/16777216.0,  real'(mul_4)/281474976710656.0);
 
 
-            scaled_0 <= (mul_0 + 80'sd8388608) >>> 24; //80 - 24 -> 56
-            scaled_1 <= (mul_1 + 80'sd8388608) >>> 24;
-            scaled_2 <= (mul_2 + 80'sd8388608) >>> 24;
-            scaled_3 <= (mul_3 + 80'sd8388608) >>> 24;
-            scaled_4 <= (mul_4 + 80'sd8388608) >>> 24;
+            scaled_0 <= (mul_0 + 88'sd33554432) >>> 26; //80 - 24 -> 56
+            scaled_1 <= (mul_1 + 88'sd33554432) >>> 26;
+            scaled_2 <= (mul_2 + 88'sd33554432) >>> 26;
+            scaled_3 <= (mul_3 + 88'sd33554432) >>> 26;
+            scaled_4 <= (mul_4 + 88'sd33554432) >>> 26;
 
             state <= LOOP_R;
         end
@@ -589,18 +593,13 @@ always_ff @(posedge clk) begin
 
         FINALIZE: 
         begin
-            $display("FINALIZE START: om=%0d", om);
-            $display("HDL y0[%0d] =%f, y1[%0d] = %f, y2[%0d] = %f, y3[%0d] = %f, y4[%0d] = %f", om, 
-                real' ($signed(acc0[39:0]) + $signed(y0[0])) /16777216.0, om,real' ($signed(acc1[39:0]) + $signed(y1[0])) /16777216.0, om, real' ($signed(acc2[39:0])+ $signed(y2[0])) /16777216.0, om, ($signed(acc3[39:0]) + $signed(y3[0])) /16777216.0, om, ($signed(acc4[39:0]) + $signed(y4[0])) /16777216.0 );
+            // $display("FINALIZE START: om=%0d", om);
+            // $display("HDL y0[%0d] =%f, y1[%0d] = %f, y2[%0d] = %f, y3[%0d] = %f, y4[%0d] = %f", om, 
+            //     real' ($signed(acc0[39:0]) + $signed(y0[0])) /67108864.0, om,real' ($signed(acc1[39:0]) + $signed(y1[0])) /67108864.0, om, real' ($signed(acc2[39:0])+ $signed(y2[0])) /67108864.0, om, ($signed(acc3[39:0]) + $signed(y3[0])) /67108864.0, om, ($signed(acc4[39:0]) + $signed(y4[0])) /67108864.0 );
 
-            // $display("acc0 full = %h, acc0[55:0] as float = %f, acc0[31:0] as float = %f, acc0[71:0] as float = %f",
-            //     acc0,
-            //     real'(acc0[55:0]) / 16777216.0,
-            //     real'(acc0[31:0]) / 16777216.0 ,
-            //     real'(acc0[71:0]) / 16777216.0);
 
             y0[om] <= $signed(acc0[39:0]) + $signed(y0[0]);
-            y1[om] <= $signed(acc1[39:0])   + $signed(y1[0]);
+            y1[om] <= $signed(acc1[39:0]) + $signed(y1[0]);
             y2[om] <= $signed(acc2[39:0]) + $signed(y2[0]);
             y3[om] <= $signed(acc3[39:0]) + $signed(y3[0]);
             y4[om] <= $signed(acc4[39:0]) + $signed(y4[0]);
@@ -626,6 +625,7 @@ always_ff @(posedge clk) begin
 
             start_pipe <= 1;
             wait_cnt <= 0;
+
             state <= OM_WAIT_ONE;
         end
 
@@ -661,13 +661,13 @@ always_ff @(posedge clk) begin
         OM_MUL1: begin
 
             // $display("OM_MUL1 om=%0d: y1[om]=%f (expected -1.115 for om=1)",
-            // om, real'(y1[om])/16777216.0);  
+            // om, real'(y1[om])/67108864.0);  
 
-            //$display("HDL current_y0 =%f, current_y1 = %f, current_y2 = %f, current_y3 = %f, current_y4 = %f", om, 
-                //real' (current_y0) /16777216.0, om,real' (current_y1) /16777216.0, om, real' (current_y2) /16777216.0, om, (current_y3) /16777216.0, om, (current_y4) /16777216.0 );
+            // $display("HDL current_y0 =%f, current_y1 = %f, current_y2 = %f, current_y3 = %f, current_y4 = %f",
+            //     real' (current_y0) /67108864.0, real' (current_y1) /67108864.0,  real' (current_y2) /67108864.0,  (current_y3) /67108864.0,  (current_y4) /67108864.0 );
 
             // $display("HDL tanh(y0[%0d)] =%f, tanh(y1[%0d]) = %f, tanh(y2[%0d]) = %f, tanh(y3[%0d]) = %f, tanh(y4[%0d]) = %f", om, 
-            //     real' (tanh_y0_reg) /16777216.0, om,real' (tanh_y1_reg) /16777216.0, om, real' (tanh_y2_reg) /16777216.0, om, (tanh_y3_reg) /16777216.0, om, (tanh_y4_reg) /16777216.0 );
+            //     real' (tanh_y0_reg) /67108864.0, om,real' (tanh_y1_reg) /67108864.0, om, real' (tanh_y2_reg) /67108864.0, om, (tanh_y3_reg) /67108864.0, om, (tanh_y4_reg) /67108864.0 );
 
             tmp1 <= (a1) * (tanh_y2_reg);
             tmp2 <= (a3) * (sin_y4_reg);
@@ -693,24 +693,24 @@ always_ff @(posedge clk) begin
 
         OM_MUL2: begin
 
-            tmp1_shift <= (tmp1 + 64'sd8388608) >>> 24;
-            tmp2_shift <= (tmp2 + 64'sd8388608) >>> 24;
+            tmp1_shift <= (tmp1 + 64'sd33554432) >>> 26;
+            tmp2_shift <= (tmp2 + 64'sd33554432) >>> 26;
 
-            m01_shift <= (m01 + 64'sd8388608) >>> 24;  //40 -> Q16.24
-            m02_shift <= (m02 + 64'sd8388608) >>> 24; 
-            m03_shift <= (m03 + 64'sd8388608) >>> 24;
+            m01_shift <= (m01 + 64'sd33554432) >>> 26;  //40 -> Q16.24
+            m02_shift <= (m02 + 64'sd33554432) >>> 26; 
+            m03_shift <= (m03 + 64'sd33554432) >>> 26;
 
-            m10_shift <= (m10 + 64'sd8388608) >>> 24; 
-            m12_shift <= (m12 + 64'sd8388608) >>> 24; 
-            m14_shift <= (m14 + 64'sd8388608) >>> 24; 
+            m10_shift <= (m10 + 64'sd33554432) >>> 26; 
+            m12_shift <= (m12 + 64'sd33554432) >>> 26; 
+            m14_shift <= (m14 + 64'sd33554432) >>> 26; 
 
-            m20_shift <= (m20 + 64'sd8388608) >>> 24; 
-            m21_shift <= (m21 + 64'sd8388608) >>> 24;
-            m22_shift <=  (m22 + 64'sd8388608) >>> 24;
+            m20_shift <= (m20 + 64'sd33554432) >>> 26; 
+            m21_shift <= (m21 + 64'sd33554432) >>> 26;
+            m22_shift <=  (m22 + 64'sd33554432) >>> 26;
 
-            m30_shift <= (m30 + 64'sd8388608) >>> 24;
+            m30_shift <= (m30 + 64'sd33554432) >>> 26;
 
-            m41_shift <= (m41 + 64'sd8388608) >>> 24;
+            m41_shift <= (m41 + 64'sd33554432) >>> 26;
 
             state<= OM_G1G2;
         end
@@ -718,7 +718,7 @@ always_ff @(posedge clk) begin
 
 
         OM_G1G2: begin
-            G1r0 <= 32'sd16777216 - tmp1_shift;  //36
+            G1r0 <= 32'sd67108864 - tmp1_shift;  //36
             G2r0 <= a2 - tmp2_shift; 
             state <= OM_GSINGTANH;
         end
@@ -732,13 +732,20 @@ always_ff @(posedge clk) begin
         end
 
         OM_GSINGTANH_SHIFT: begin
-            G1tanh <= (G1_tmp + 72'sd8388608) >>> 24;
-            G2sin  <= (G2_tmp + 72'sd8388608) >>> 24;
+            G1tanh <= (G1_tmp + 72'sd33554432) >>> 26;
+            G2sin  <= (G2_tmp + 72'sd33554432) >>> 26;
             
             state <= OM_SUM;
         end
 
             OM_SUM: begin
+
+            // $display("HDL y_sum[%0d]: y0=%f y1=%f y2=%f y3=%f y4=%f", om,
+            // real'(-y0[om] + m01_shift + m02_shift + m03_shift)/67108864.0,
+            // real'(-y1[om] + m10_shift+ m12_shift + m14_shift + f1)/67108864.0,
+            // real'(-y2[om] + m20_shift + m21_shift + m22_shift)/67108864.0,
+            // real'(-y3[om] + m30_shift + G2sin + f3)/67108864.0,
+            // real'(-y4[om] + m41_shift + G1tanh)/67108864.0);
 
             y0_sum[om] <= -y0[om] + m01_shift + m02_shift + m03_shift; 
             y1_sum[om] <= -y1[om] + m10_shift+ m12_shift + m14_shift + f1;
