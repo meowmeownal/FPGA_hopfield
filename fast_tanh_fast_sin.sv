@@ -1,29 +1,29 @@
 `timescale 1ns / 1ps
 import types_pkg::*;
-//typedef logic signed [31:0] q8_24_t;
+//typedef logic signed [31:0] q6_26_t;
 
 module fast_tanh(
     input  logic clk,
     input  logic rst,
     input  logic valid_in,
-    input  q8_24_t x,
+    input  q6_26_t x,
 
     output logic valid_out,
-    output q8_24_t y   
+    output q6_26_t y   
 );                                                          
-    localparam logic signed [63:0] INV_TANH_RANGE = 64'sd87261496076;   //1342136320;  //671088640;  //(N-1)/tanh_range 
-    localparam q8_24_t ONE  =  32'sd16777216;//262144; //1
-    localparam q8_24_t MONE = -32'sd16777216; //-1
+    localparam logic signed [63:0] INV_TANH_RANGE = 64'sd349045984305;          //87261496076;  //(N-1)/tanh_range 
+    localparam q6_26_t ONE  =  32'sd67108864;                                   // 16777216;//262144; //1
+    localparam q6_26_t MONE = -32'sd67108864;                                   //16777216; //-1
 
     // LUT-------------
-    // (* rom_style = "block" *) q8_24_t tanh_lut [0:TANH_N-1];
+    // (* rom_style = "block" *) q6_26_t tanh_lut [0:TANH_N-1];
     // initial $readmemh("tanh_lut.mem", tanh_lut);
 
 //===============LUT tanh divided in 4 to fit vivado limitations================================ 
-    (* rom_style = "block" *) q8_24_t tanh_lut_0 [0:16383];
-    (* rom_style = "block" *) q8_24_t tanh_lut_1 [0:16383];
-    (* rom_style = "block" *) q8_24_t tanh_lut_2 [0:16383];
-    (* rom_style = "block" *) q8_24_t tanh_lut_3 [0:16383];
+    (* rom_style = "block" *) q6_26_t tanh_lut_0 [0:16383];
+    (* rom_style = "block" *) q6_26_t tanh_lut_1 [0:16383];
+    (* rom_style = "block" *) q6_26_t tanh_lut_2 [0:16383];
+    (* rom_style = "block" *) q6_26_t tanh_lut_3 [0:16383];
 
 initial begin
         $readmemh("tanh_lut_low1.mem", tanh_lut_0);
@@ -55,7 +55,7 @@ initial begin
     logic valid_2;
     logic low_2, high_2;
     logic [15:0] idx;
-    logic [23:0] frac;
+    logic [25:0] frac;
 
     logic signed [95:0] t_div; 
     always_ff @(posedge clk) begin
@@ -83,15 +83,15 @@ initial begin
             low_3   <= low_2;
             high_3  <= high_2;
 
-            idx  <= t_div[63:48];   // int
-            frac <= t_div[47:24];    // fractional
+            idx  <= t_div[67:52];   // int
+            frac <= t_div[51:26];    // fractional
         end
     end
 
     logic valid_4;
     logic low_4, high_4;
-    q8_24_t y0, y1;
-    logic [23:0] frac_2;
+    q6_26_t y0, y1;
+    logic [25:0] frac_2;
 
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -148,7 +148,9 @@ initial begin
     logic signed [31:0] diff;
     logic valid_5;
     logic low_5, high_5;
-        logic [23:0] frac_3;
+    logic [25:0] frac_3;
+
+    q6_26_t y0_hold1;
     always_ff @(posedge clk) begin
         if (rst) begin
             valid_5 <= 0;
@@ -156,11 +158,14 @@ initial begin
             low_5 <= 0;
             high_5<=0;
             frac_3 <= 0;
+            y0_hold1 <= 0;
         end else begin
             low_5<=low_4;
             high_5<=high_4;
             valid_5 <= valid_4;
             frac_3<= frac_2;
+            y0_hold1 <= y0;
+
             diff <= (y1 - y0); // * frac_2; //32 + 24 =  56
 
         end 
@@ -169,6 +174,7 @@ initial begin
     logic valid_6;
     logic signed [55:0] diff_2;
     logic low_6, high_6;
+    q6_26_t y0_hold2;
     always_ff @(posedge clk) begin
         if(rst)begin
             valid_6 <= 0;
@@ -176,10 +182,12 @@ initial begin
             //y<= 0;
             low_6<=0;
             high_6<=0;
+            y0_hold2 <= 0;
         end else begin
             valid_6 <= valid_5;
             low_6<=low_5;
             high_6<=high_5;
+            y0_hold2 <= y0_hold1;
 
             diff_2 <= diff * $signed({1'b0, frac_3}); //diff *frac_2;        
         end
@@ -189,33 +197,39 @@ initial begin
     logic signed [31:0] diff_3;
     logic valid_7;
     logic low_7, high_7;
+    q6_26_t y0_hold3;
     always_ff @(posedge clk)begin
         if(rst)begin
             valid_7 <= 0;
             diff_3 <= 0;
             low_7<=0;
             high_7<=0;
+            y0_hold3<=0;
         end else begin
             valid_7 <= valid_6;
             low_7<=low_6;
             high_7<=high_6;
-            diff_3 <= diff_2 >>>24;
+            y0_hold3 <= y0_hold2;
+            diff_3 <= diff_2 >>>26;
         end
     end
 
     logic low_8, high_8;
     logic valid_8;
+    q6_26_t y0_hold4;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_8<=0;
             //y <=0;
             low_8 <= 0;
             high_8 <= 0;
+            y0_hold4<= 0;
         end else begin
             valid_8 <= valid_7;
 
             low_8<=low_7;
             high_8<=high_7;
+            y0_hold4 <= y0_hold3;
             // if (low_8)
             //     y <= MONE;
             // else if (high_8)
@@ -228,86 +242,101 @@ initial begin
 
     logic low_9, high_9;
     logic valid_9;
+    q6_26_t y0_hold5;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_9<=0;
             low_9 <= 0;
             high_9 <= 0;
+            y0_hold5 <= 0;
         end else begin
             valid_9 <= valid_8;
             low_9<=low_8;
             high_9<=high_8;
+            y0_hold5 <= y0_hold4;
         end
     end
 
     logic low_10, high_10;
     logic valid_10;
+    q6_26_t y0_hold6;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_10<=0;
             low_10 <= 0;
             high_10 <= 0;
+            y0_hold6 <= 0;
         end else begin
             valid_10 <= valid_9;
             low_10<=low_9;
             high_10<=high_9;
+            y0_hold6 <= y0_hold5;
         end
     end
 
     logic low_11, high_11;
     logic valid_11;
+    q6_26_t y0_hold7;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_11<=0;
             low_11 <= 0;
             high_11 <= 0;
+            y0_hold7 <= 0;
         end else begin
             valid_11 <= valid_10;
             low_11<=low_10;
             high_11<=high_10;
+            y0_hold7 <= y0_hold6;
         end
     end
 
     logic low_12, high_12;
     logic valid_12;
+    q6_26_t y0_hold8;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_12<=0;
             low_12 <= 0;
             high_12 <= 0;
+            y0_hold8 <= 0;
         end else begin
             valid_12 <= valid_11;
             low_12<=low_11;
             high_12<=high_11;
+            y0_hold8 <= y0_hold7;
         end
     end
 
     logic low_13, high_13;
+    q6_26_t y0_hold9;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_out<=0;
             low_13 <= 0;
             high_13 <= 0;
             y <= 0;
+            y0_hold9 <= 0;
         end else begin
             valid_out <= valid_12;
             low_13<=low_12;
             high_13<=high_12;
+            y0_hold9 <= y0_hold8;
 
             if (low_13)
                 y <= MONE;
             else if (high_13)
                 y <= ONE;
             else
-                y <= y0 + diff_3;
+                y <= y0_hold9 + diff_3;
         end
     end
 
-    //     initial begin
-    //     $display("tanh_lut[0]=%h", tanh_lut[0]);
-    //     $display("tanh_lut[1]=%h", tanh_lut[1]);
-    //     $display("tanh_lut[(TANH_N-1)/4]=%h", tanh_lut[(TANH_N-1)/4]);
-    //     $display("tanh_lut[TANH_N-1]=%h", tanh_lut[TANH_N-1]);
+    // initial begin
+    //     $display("tanh_lut[0]=%f", real'(tanh_lut_0[0]) / 67108864.0);
+    //     $display("tanh_lut[1]=%f", real'(tanh_lut_0[1])/67108864.0);
+    //     $display("tanh_lut[(TANH_N-1)/4]=%f", real'(tanh_lut_0[16383])/67108864.0);
+    //     $display("tanh_lut[TANH_N-1]=%f", real'(tanh_lut_3[16383])/67108864.0);
     // end
 
 
@@ -340,6 +369,8 @@ initial begin
     //         end
     //     end
     // end
+
+
 endmodule
 
 
@@ -351,24 +382,24 @@ module fast_sin(
     input  logic signed [31:0] x,   //24 bit q6.18
 
     output logic valid_out,
-    output q8_24_t y 
+    output q6_26_t y 
 );
 
-    (* rom_style = "block" *) q8_24_t sin_lut [0:SIN_N-1];
+    (* rom_style = "block" *) q6_26_t sin_lut [0:SIN_N-1];
     initial begin
         $readmemh("sin_lut.mem", sin_lut);
     end
     
     logic signed [63:0] mult1;
     logic signed [31:0] k;
-    //q8_24_t x_red; //32
+    //q6_26_t x_red; //32
     logic signed [31:0] x_red;
 
     logic valid_pi1, valid_pi2, valid_pi3, valid_pi4;
 
-    localparam q8_24_t TWO_PI = 32'sd105414357;   //1647098;     
-    localparam q8_24_t INV_TWO_PI = 32'sd2670177; //41721; 
-    localparam logic signed [63:0] INV_SIN_RANGE = 64'sd87493685097 ; //1367088830; //683565276; //32'sd683565276;//32'sd4172;
+    localparam q6_26_t TWO_PI = 32'sd421657428; //105414357;     
+    localparam q6_26_t INV_TWO_PI = 32'sd10680707; //2670177; 
+    localparam logic signed [63:0] INV_SIN_RANGE = 64'sd349974740388; //87493685097 ; 
     logic signed [63:0] x_tmp;
     logic signed [31:0] x_pi1, x_pi2;
 
@@ -382,8 +413,6 @@ module fast_sin(
             valid_pi1 <= valid_in;
             mult1 <= x * INV_TWO_PI; //32 + 32 = 64bit
             x_pi1 <= x;
-            // if (valid_in)
-            //     $display("SIN_IN: x=%f", real'(x)/16777216.0);
             //=================================================
         end 
     end
@@ -396,14 +425,8 @@ module fast_sin(
                 valid_pi2 <= valid_pi1;
             //========etap2=======================================
             //k <= (mult2 + (1<<17)) >>> 18; //to zaokragla
-            k <= mult1 >>> 48; //k <= mult1 >>> 18; //to zaokragla w dol, czyli bardziej modulo
+            k <= mult1 >>> 52; //k <= mult1 >>> 18; //to zaokragla w dol, czyli bardziej modulo
             x_pi2 <= x_pi1;
-
-            // if(valid_pi2)
-            // $display("SIN k=%0d x_pi2=%f x_tmp=%f", 
-            //     k,
-            //     real'(x_pi2)/16777216.0,
-            //     real'(x_pi2 - k*TWO_PI)/16777216.0);
             //=====================================================
             end
         end
@@ -440,7 +463,7 @@ module fast_sin(
 
 
     logic [14:0] idx;     
-    logic [23:0] f_1; 
+    logic [25:0] f_1; 
     //---------changed bits from 31 to 64---------
     logic signed [31:0] t_mul;
     //logic signed [63:0] t_mul;
@@ -480,8 +503,8 @@ module fast_sin(
             f_1 <= 0;
         end else begin
             valid_op2 <=  valid_op1;
-            idx <= t_div[62:48];
-            f_1 <= t_div[47:24];
+            idx <= t_div[66:52];
+            f_1 <= t_div[51:26];
         end
     end
 
@@ -497,8 +520,8 @@ module fast_sin(
 //-----------------------------------------------------------
 
 //----------------------LUT----------------
-    q8_24_t y0, y1;
-    logic [23:0] f_2;
+    q6_26_t y0, y1;
+    logic [25:0] f_2;
     logic valid_2;
 
         always_ff @(posedge clk) begin
@@ -509,13 +532,6 @@ module fast_sin(
                 f_2 <= 0;
             end else  begin
                 valid_2 <= valid_op2;
-
-                // if(valid_op2)
-                // $display("SIN_LUT: i_safe=%0d y0=%f y1=%f f_2=%0d",
-                //     i_safe,
-                //     real'(sin_lut[i_safe])/16777216.0,
-                //     real'(sin_lut[i_safe+1])/16777216.0,
-                //     f_1);
                 y0 <= sin_lut[i_safe]; //sin_lut[i_1];
 
                 if (i_safe == SIN_N-1)
@@ -530,9 +546,9 @@ module fast_sin(
         logic signed [31:0] diff;
         logic signed [31:0] y_interpol;
         logic valid_3;
-        logic [23:0] f_3;
+        logic [25:0] f_3;
 
-        q8_24_t y0_hold1, y0_hold2, y0_hold3;
+        q6_26_t y0_hold1, y0_hold2, y0_hold3;
 
         always_ff @(posedge clk) begin
             if(rst)begin
@@ -574,13 +590,7 @@ module fast_sin(
             end else begin
                 valid_5 <= valid_4;
                 y0_hold3 <= y0_hold2;
-                diff_3 <= 32'(diff_2 >>> 24); //diff_2>>>24;
-                // if(valid_5)
-                //     $display("SIN_OUT: y0_hold3=%f diff_3=%f result=%f",
-                //         real'(y0_hold3)/16777216.0,
-                //         real'(diff_3)/16777216.0,
-                //         real'(y0_hold3 + diff_3)/16777216.0);
-
+                diff_3 <= 32'(diff_2 >>> 26); //diff_2>>>24;
             end
         end
 
@@ -600,12 +610,11 @@ module fast_sin(
         // assign y = y_interpol;
 
     //     initial begin
-    //     $display("sin_lut[0]=%h", sin_lut[0]);
-    //     $display("sin_lut[1]=%h", sin_lut[1]);
-    //     $display("sin_lut[(SIN_N-1)/4]=%h", sin_lut[(SIN_N-1)/4]);
-    //     $display("sin_lut[SIN_N-1]=%h", sin_lut[SIN_N-1]);
+    //     $display("sin_lut[0]=%f", real'(sin_lut[0]) / 67108864.0);
+    //     $display("sin_lut[1]=%f", real'(sin_lut[1])/67108864.0);
+    //     $display("sin_lut[(SIN_N-1)/4]=%f", real'(sin_lut[(SIN_N-1)/4])/67108864.0);
+    //     $display("sin_lut[SIN_N-1]=%f", real'(sin_lut[SIN_N-1])/67108864.0);
     // end
-    //$display("sin[0]: om=%0d at t=%0t", om, $time);
 
     // logic [7:0] latency_counter;
     // logic first_output_done;
