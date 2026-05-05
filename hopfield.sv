@@ -9,7 +9,7 @@
 import types_pkg::*;
 
 module neural_core #(
-    parameter T = 50 //mozna bedzie zwiekszyc :))
+    parameter T = 5000 //mozna bedzie zwiekszyc :))
 )(
     input  logic clk,
     input  logic rst,
@@ -30,17 +30,17 @@ localparam int N = 5; //liczba neuronow
     end
     //---------------------------------------------------------------------------
 
-    logic signed [39:0] y0  [0:T];
-    logic signed [39:0] y1  [0:T];
-    logic signed [39:0] y2  [0:T];
-    logic signed [39:0] y3  [0:T];
-    logic signed [39:0] y4  [0:T];
+    (* ram_style = "block" *) logic signed [39:0] y0  [0:T];
+    (* ram_style = "block" *) logic signed [39:0] y1  [0:T];
+    (* ram_style = "block" *) logic signed [39:0] y2  [0:T];
+    (* ram_style = "block" *) logic signed [39:0] y3  [0:T];
+    (* ram_style = "block" *) logic signed [39:0] y4  [0:T];
 
-    logic signed [55:0] y0_sum [0:T];
-    logic signed [55:0]  y1_sum [0:T];
-    logic signed [55:0]  y2_sum [0:T];
-    logic signed [55:0]  y3_sum [0:T];
-    logic signed [55:0]  y4_sum [0:T];
+    (* ram_style = "block" *) logic signed [55:0] y0_sum [0:T];
+    (* ram_style = "block" *) logic signed [55:0]  y1_sum [0:T];
+    (* ram_style = "block" *) logic signed [55:0]  y2_sum [0:T];
+    (* ram_style = "block" *) logic signed [55:0]  y3_sum [0:T];
+    (* ram_style = "block" *) logic signed [55:0]  y4_sum [0:T];
 
     // logic signed [55:0] y0_hold, y1_hold, y2_hold, y3_hold, y4_hold;
 
