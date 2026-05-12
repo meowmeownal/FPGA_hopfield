@@ -40,7 +40,7 @@ const logic signed [31:0] weights [0:N-1][0:N-1] = '{
     end
     //---------------------------------------------------------------------------
 
-logic [12:0] om;
+(* mark_debug = "true" *) logic [12:0] om;
 //(* mark_debug = "true" *)
 
 logic [12:0] r;
@@ -104,7 +104,6 @@ typedef enum logic [5:0] {
     LATCH_RESULT,
     INIT_OM_WAIT,
     INIT_OM, // 
-    //WAIT_PIPE,
     INIT_PIPE_MUL1, //
     INIT_PIPE_MUL2,
     INIT_PIPE_G1G2,
@@ -120,7 +119,6 @@ typedef enum logic [5:0] {
     OM_START2,
     OM_WAIT_ONE,
     OM_LATCH,
-    //OM_WAIT,
     OM_SUM,
     OM_SUM_DONE,
     OM_SUM_SAVE,
@@ -260,10 +258,18 @@ logic signed [71:0] G1_tmp, G2_tmp;
 logic [3:0] wait_cnt;
 logic signed [39:0] y0_init, y1_init, y2_init, y3_init, y4_init;
 
+logic [31:0] dt_counter;
+
 always_ff @(posedge clk) begin
     if (rst) begin
+
+        // variables to get time of calculations
+        dt_counter <= 0;
+
+        // iteration variables
         om <= 0;
         r <= 0;
+
         sample_send <= 0;
         wr_en_ys <= 0;
 
@@ -271,6 +277,7 @@ always_ff @(posedge clk) begin
         wait_cnt <= 0;
         ys_rd_addr<=0;
 
+    // variables needed to calculate neurons y0-y4
         tmp1 <= 0; 
         tmp2 <= 0; 
         tmp1_shift <= 0;
@@ -321,7 +328,12 @@ always_ff @(posedge clk) begin
         state <= WAIT;
 
     end else begin
+
+        if(state != INIT_OM_WAIT && state != STOP && state != WAIT_UART &&  state != SEND) begin
+            dt_counter <= dt_counter +1;
+        end 
         sample_send <=0;
+        
         case (state)
 
         WAIT:
@@ -504,7 +516,9 @@ always_ff @(posedge clk) begin
 //--------------for(om=1;om<T+1;om++)------------------------------
 
         INIT_OM: begin
-            acc0 <= 0; //w kazdej iteracji om na poczatku daje 0
+
+            dt_counter <= 0;
+            acc0 <= 0; 
             acc1 <= 0;
             acc2 <= 0;
             acc3 <= 0;
@@ -591,17 +605,6 @@ always_ff @(posedge clk) begin
 
             state <= RD_YOM_ADDR; //OM_START; //SEND;
         end
-
-        // FINALIZE_SAVE: begin
-        //     wr_en_y <= 1'b1;
-        //     write_addr <= om;
-        //     state<=FINALIZE_WAIT; 
-        // end
-
-        // FINALIZE_WAIT: begin
-        //     wr_en_y <= 1'b0;
-        //     state<=RD_YOM_ADDR;
-        // end
 
 
         RD_YOM_ADDR: begin
@@ -776,7 +779,7 @@ always_ff @(posedge clk) begin
                 sample_out.y2 <= current_y2[31:0];
                 sample_out.y3 <= current_y3[31:0];
                 sample_out.y4 <= current_y4[31:0];
-                sample_out.dt <= 0;
+                sample_out.dt <= dt_counter;
                 state <= WAIT_UART;
             
                 // if(om==T)state <= STOP;
@@ -789,7 +792,7 @@ always_ff @(posedge clk) begin
         end
         WAIT_UART: begin
             sample_send <= 0; //waiting for uart
-            if(pause) begin //uart starting to work
+            if(!pause) begin //uart starting to work
                 if(om == T) 
                     state<= STOP;
                 else begin
