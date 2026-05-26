@@ -245,13 +245,6 @@ always_comb begin
     data_send_dac2  = {4'b0000, dac2_data};
 end
 
-always_comb begin
-
-    scaled_dac1 = (from_neur_core_data.y1 >>> 15) * 13 >>> 6;
-    dac_data_dac1 = scaled_dac1[11:0] + 12'sd2048;
-    data_send_dac1 = {4'b0000, dac_data_dac1};
-end
-
 always_ff @(posedge CLK100MHZ) begin
     if(rst) begin 
         dac_state <= DAC_IDLE;
