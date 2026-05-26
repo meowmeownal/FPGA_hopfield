@@ -1,0 +1,1 @@
+In this project im implementing HNN of fractional order, it is still developed. Im currently using slightly adjusted implementation of i2c protocole posted on here by user tom-urkin. UART will be added soon.
