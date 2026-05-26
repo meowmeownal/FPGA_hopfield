@@ -231,22 +231,25 @@ always_ff @(posedge CLK100MHZ) begin
 
 end
 
+///for -5;5, 13/64 = 0.203.., (x*13) >>> 6, 64 = 2^6
+// for -2.5;2.5 -> 51/128 -> 2^7 -> (x*51) >>> 7
 always_comb begin
-    sample_q6_6_dac1 = from_neur_core_data.y1 >>> 20; //removing 20 last bits
-    dac1_data = sample_q6_6_dac1 + 12'sd2048;
-
+    sample_q6_6_dac1 = (from_neur_core_data.y1 >>> 20) *51 >>> 7; //removing 20 last bits
+    dac1_data = sample_q6_6_dac1[11:0] + 12'sd2048;
     data_send_dac1  = {4'b0000, dac1_data};
-
-
 end
 
 always_comb begin
-    sample_q6_6_dac2 = sample_delayed >>> 20; //removing 20 last bits
+    sample_q6_6_dac2 = (sample_delayed >>> 20) * 51 >>> 7; //removing 20 last bits
     dac2_data = sample_q6_6_dac2 + 12'd2048;
     data_send_dac2  = {4'b0000, dac2_data};
+end
 
+always_comb begin
 
-
+    scaled_dac1 = (from_neur_core_data.y1 >>> 15) * 13 >>> 6;
+    dac_data_dac1 = scaled_dac1[11:0] + 12'sd2048;
+    data_send_dac1 = {4'b0000, dac_data_dac1};
 end
 
 always_ff @(posedge CLK100MHZ) begin
