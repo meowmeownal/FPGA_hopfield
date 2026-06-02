@@ -15,7 +15,7 @@ module top (
 //================ NEURAL CORE =================
 DATA sample_out;
 (* mark_debug = "true" *) logic sample_send;
-(* mark_debug = "true" *) logic uart_busy_neur_core;
+logic uart_busy_neur_core;
 //(* mark_debug = "true" *) 
 
 
@@ -116,7 +116,7 @@ generate
     end
 endgenerate
 
-assign uart_busy_neur_core = (state != IDLE) || sample_send;; // when state == idle -> urat = 0, is not busy
+assign uart_busy_neur_core = (state != IDLE) || sample_send || (dac_state != DAC_IDLE);; // when state == idle -> urat = 0, is not busy
 
 always_ff @(posedge CLK100MHZ) begin
     if (rst) begin
@@ -202,11 +202,12 @@ logic [11:0] dac2_data;
 logic [15:0] data_send_dac2;
 
 
-logic [7:0] current_addr;
-logic [23:0] current_data;
+(* mark_debug = "true" *) logic [7:0] current_addr;
+(* mark_debug = "true" *) logic [15:0] current_data;
 
-logic start_i2c;
-logic i2c_busy;
+(* mark_debug = "true" *) logic start_i2c;
+//(* dont_touch = "true" *) logic start_i2c;
+(* mark_debug = "true" *) logic i2c_busy;
 
 typedef enum logic [2:0] {
 
@@ -214,36 +215,66 @@ typedef enum logic [2:0] {
     DAC_SEND_1,
     DAC_WAIT_1,
     DAC_WAIT_1_DONE,
+    DAC_DELAY,
     DAC_SEND_2,
     DAC_WAIT_2,
     DAC_WAIT_2_DONE
 
 } dac_state_t;
 
-dac_state_t dac_state;
+(* mark_debug = "true" *) dac_state_t dac_state;
 
 always_ff @(posedge CLK100MHZ) begin
 
     if(rst)
         sample_delayed <= 0;
     else if(sample_send)
-        sample_delayed <= from_neur_core_data.y1;
+        sample_delayed <= sample_out.y0; //y(n-1)
 
+end
+logic signed [31:0] dac1_hold, dac2_hold;
+
+always_ff @(posedge CLK100MHZ) begin
+    if(rst) begin
+        dac1_hold <=0;
+        dac2_hold <=0;
+    end else if(sample_send) begin //when neural_core starts sending data
+        dac1_hold <= sample_out.y0;
+        dac2_hold <= sample_delayed;
+    end
 end
 
 ///for -5;5, 13/64 = 0.203.., (x*13) >>> 6, 64 = 2^6
 // for -2.5;2.5 -> 51/128 -> 2^7 -> (x*51) >>> 7
-always_comb begin
-    sample_q6_6_dac1 = (from_neur_core_data.y1 >>> 20) *51 >>> 7; //removing 20 last bits
-    dac1_data = sample_q6_6_dac1[11:0] + 12'sd2048;
-    data_send_dac1  = {4'b0000, dac1_data};
-end
+// always_comb begin
+//     sample_q6_6_dac1 = (from_neur_core_data.y0) *51 >>> 27; //removing 20 last bits
+//     dac1_data = sample_q6_6_dac1[11:0] + 12'sd2048;
+//     data_send_dac1  = {4'b0100, dac1_data[11:8], dac1_data[7:0]};
+// // end
+
+// // always_comb begin
+//     sample_q6_6_dac2 = (sample_delayed ) * 51 >>> 27; //removing 20 last bits
+//     dac2_data = sample_q6_6_dac2[11:0] + 12'd2048;
+//     data_send_dac2  = {4'b0100, dac2_data[11:8], dac2_data[7:0]};
+// end
+
+logic signed [63:0] shifted_dac1, shifted_dac2;
+logic signed [63:0] dac1_raw, dac2_raw;
+
 
 always_comb begin
-    sample_q6_6_dac2 = (sample_delayed >>> 20) * 51 >>> 7; //removing 20 last bits
-    dac2_data = sample_q6_6_dac2 + 12'd2048;
-    data_send_dac2  = {4'b0000, dac2_data};
+    shifted_dac1 = $signed(dac1_hold) + 64'sd167772160;
+    dac1_raw = (shifted_dac1 * 64'sd819) >>> 26;
+    dac1_data = (dac1_raw > 4095) ? 12'd4095 : dac1_raw[11:0];
+    data_send_dac1 = {4'b0100, dac1_data};
+
+    shifted_dac2 = $signed(dac2_hold) + 64'sd167772160;
+    dac2_raw = (shifted_dac2 * 64'sd819) >>> 26;
+    dac2_data = (dac2_raw > 4095) ? 12'd4095 : dac2_raw[11:0];
+    data_send_dac2 = {4'b0100, dac2_data};
 end
+
+logic [15:0] delay_counter;
 
 always_ff @(posedge CLK100MHZ) begin
     if(rst) begin 
@@ -251,40 +282,63 @@ always_ff @(posedge CLK100MHZ) begin
         start_i2c <= 0;
         current_data<=0;
         current_addr<=0;
+        delay_counter <= 0;
 
     end else begin
         start_i2c <= 0;
         case(dac_state)
         DAC_IDLE: begin
+            delay_counter <= 0;
             if(sample_send) dac_state <= DAC_SEND_1;
         end
         DAC_SEND_1: begin
             if(!i2c_busy) begin
                 current_addr <= 8'hC0;
-                current_data <= {data_send_dac1, 8'b0};
+                //current_data <= { 8'b0, data_send_dac1};
+
+                // current_data <= '0;
+                // current_data[15:0] <= data_send_dac1;
+                current_data <= data_send_dac1; //{8'b0, 4'b0100, 12'd2048};
                 start_i2c <= 1;
                 dac_state <= DAC_WAIT_1;
             end
         end
         DAC_WAIT_1: begin
-            if(i2c_busy) dac_state <= DAC_WAIT_1_DONE;
+            if(i2c_busy) begin
+                start_i2c <= 0;
+                dac_state <= DAC_WAIT_1_DONE;
+            end
         end
 
         DAC_WAIT_1_DONE: begin
-            if(!i2c_busy) dac_state <= DAC_SEND_2;
+            if(!i2c_busy) dac_state <= DAC_DELAY;
         end
+
+        DAC_DELAY: begin
+            if(delay_counter < 16'd100) begin
+                delay_counter <= delay_counter + 1;
+            end else begin
+                dac_state <= DAC_SEND_2;
+            end
+        end 
 
         DAC_SEND_2: begin
             if(!i2c_busy)begin
                 current_addr <= 8'hC2;
-                current_data <= data_send_dac2;
+
+                current_data <= data_send_dac2;//{8'b0, 4'b0100, dac1_data};
+                //current_data <= { 8'b0, data_send_dac2};
                 start_i2c <= 1;
                 dac_state <= DAC_WAIT_2;
+                
             end
         end
 
         DAC_WAIT_2: begin
-            if(i2c_busy)dac_state <= DAC_WAIT_2_DONE;
+            if(i2c_busy)begin 
+                start_i2c <= 0;
+                dac_state <= DAC_WAIT_2_DONE;
+            end
         end
 
         DAC_WAIT_2_DONE: begin 
@@ -298,7 +352,7 @@ end
 i2c_master i2c_inst (
 
     .clk(CLK100MHZ),
-    .rst(rst),
+    .rst(~rst),
     .start(start_i2c),
     .dac_addr(current_addr),
     .data_send(current_data),
@@ -310,6 +364,11 @@ i2c_master i2c_inst (
     .data_received(data_received)
 
 );
+
+//(* mark_debug = "true", dont_touch = "true" *) logic rst_i2c_dbg;
+
+//always_ff @(posedge CLK100MHZ)
+//    rst_i2c_dbg <= rst;
 
 
 endmodule
