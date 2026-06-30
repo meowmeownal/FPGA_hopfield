@@ -75,7 +75,7 @@ generate
             .wr_en(wr_en_ys),
             .wr_addr(write_addr),
             .data_in(ys_in[i]),
-            .rd_addr(ys_rd_addr), // używamy Twojego ys_rd_addr z kodu
+            .rd_addr(ys_rd_addr),
             .data_out(ys_out[i])
         );
     end
@@ -104,6 +104,7 @@ typedef enum logic [5:0] {
     LATCH_RESULT,
     INIT_OM_WAIT,
     INIT_OM, // 
+    //WAIT_PIPE,
     INIT_PIPE_MUL1, //
     INIT_PIPE_MUL2,
     INIT_PIPE_G1G2,
@@ -119,6 +120,7 @@ typedef enum logic [5:0] {
     OM_START2,
     OM_WAIT_ONE,
     OM_LATCH,
+    //OM_WAIT,
     OM_SUM,
     OM_SUM_DONE,
     OM_SUM_SAVE,
@@ -246,7 +248,7 @@ localparam q6_26_t f1 = 32'sd0;
 localparam q6_26_t f3 = 32'sd0;
 
 localparam q6_26_t a1 = -32'sd147639501;
-localparam q6_26_t a2 = 32'sd201326592;
+localparam q6_26_t a2 = 32'sd438220882; //201326592;
 localparam q6_26_t a3 = 32'sd80530637;              
 
 logic signed [39:0] tmp1_shift, tmp2_shift;
@@ -518,7 +520,7 @@ always_ff @(posedge clk) begin
         INIT_OM: begin
 
             dt_counter <= 0;
-            acc0 <= 0; 
+            acc0 <= 0; //w kazdej iteracji om na poczatku daje 0
             acc1 <= 0;
             acc2 <= 0;
             acc3 <= 0;
@@ -592,9 +594,9 @@ always_ff @(posedge clk) begin
 
         FINALIZE: 
         begin
-            // $display("FINALIZE START: om=%0d", om);
-            // $display("HDL y0[%0d] =%f, y1[%0d] = %f, y2[%0d] = %f, y3[%0d] = %f, y4[%0d] = %f", om, 
-            //     real' ($signed(acc0[39:0]) + $signed(y0_init)) /67108864.0, om,real' ($signed(acc1[39:0]) + $signed(y1_init)) /67108864.0, om, real' ($signed(acc2[39:0])+ $signed(y2_init)) /67108864.0, om, ($signed(acc3[39:0]) + $signed(y3_init)) /67108864.0, om, ($signed(acc4[39:0]) + $signed(y4_init)) /67108864.0 );
+//             $display("FINALIZE START: om=%0d", om);
+//             $display("HDL y0[%0d] =%f, y1[%0d] = %f, y2[%0d] = %f, y3[%0d] = %f, y4[%0d] = %f", om, 
+//                 real' ($signed(acc0[39:0]) + $signed(y0_init)) /67108864.0, om,real' ($signed(acc1[39:0]) + $signed(y1_init)) /67108864.0, om, real' ($signed(acc2[39:0])+ $signed(y2_init)) /67108864.0, om, ($signed(acc3[39:0]) + $signed(y3_init)) /67108864.0, om, ($signed(acc4[39:0]) + $signed(y4_init)) /67108864.0 );
             //$display("acc0=%0d acc0[39:0]=%0d", acc0, $signed(acc0[39:0]));
 
             y0 <= $signed(acc0[39:0]) + $signed(y0_init);
@@ -605,6 +607,17 @@ always_ff @(posedge clk) begin
 
             state <= RD_YOM_ADDR; //OM_START; //SEND;
         end
+
+        // FINALIZE_SAVE: begin
+        //     wr_en_y <= 1'b1;
+        //     write_addr <= om;
+        //     state<=FINALIZE_WAIT; 
+        // end
+
+        // FINALIZE_WAIT: begin
+        //     wr_en_y <= 1'b0;
+        //     state<=RD_YOM_ADDR;
+        // end
 
 
         RD_YOM_ADDR: begin
