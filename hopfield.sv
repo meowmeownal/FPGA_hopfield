@@ -75,7 +75,7 @@ generate
             .wr_en(wr_en_ys),
             .wr_addr(write_addr),
             .data_in(ys_in[i]),
-            .rd_addr(ys_rd_addr),
+            .rd_addr(ys_rd_addr), 
             .data_out(ys_out[i])
         );
     end
@@ -608,17 +608,6 @@ always_ff @(posedge clk) begin
             state <= RD_YOM_ADDR; //OM_START; //SEND;
         end
 
-        // FINALIZE_SAVE: begin
-        //     wr_en_y <= 1'b1;
-        //     write_addr <= om;
-        //     state<=FINALIZE_WAIT; 
-        // end
-
-        // FINALIZE_WAIT: begin
-        //     wr_en_y <= 1'b0;
-        //     state<=RD_YOM_ADDR;
-        // end
-
 
         RD_YOM_ADDR: begin
             neuron_num <= 0;
@@ -759,7 +748,7 @@ always_ff @(posedge clk) begin
             state <= OM_SUM;
         end
 
-            OM_SUM: begin
+        OM_SUM: begin
             ys_in[0] <= -current_y0 + m01_shift + m02_shift + m03_shift; 
             ys_in[1] <= -current_y1 + m10_shift+ m12_shift + m14_shift + f1;
             ys_in[2] <= -current_y2 + m20_shift + m21_shift + m22_shift;
