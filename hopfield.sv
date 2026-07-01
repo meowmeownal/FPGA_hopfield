@@ -9,137 +9,105 @@
 import types_pkg::*;
 
 module neural_core #(
-    parameter T = 50 //mozna bedzie zwiekszyc :))
+    parameter T = 200 //mozna bedzie zwiekszyc :))
 )(
     input  logic clk,
     input  logic rst,
     input  logic start,
+    input logic pause,
+
 
     output logic sample_send,
     output DATA sample_out
 );
 
-localparam logic [7:0] ADDR  = 8'h60 << 1;
-localparam logic [7:0] ADDR1 = 8'h61 << 1;
 localparam int N = 5; //liczba neuronow
+
+//---------------WEIGHTS MATRIX----------------------------------
+const logic signed [31:0] weights [0:N-1][0:N-1] = '{
+    '{32'sd0, -32'sd5033165, -32'sd13421773, -32'sd10066330, 32'sd0},
+    '{-32'sd50331648, 32'sd0, 32'sd33554432, 32'sd0, 32'sd6710886},
+    '{32'sd28521267, -32'sd6710886, 32'sd50331648, 32'sd0, 32'sd0},
+    '{32'sd11744051, 32'sd0, 32'sd0, 32'sd0, 32'sd0},
+    '{32'sd0, 32'sd28521267, 32'sd0, 32'sd0, 32'sd0}
+};
+
 
 //logic signed [47:0]
     (* rom_style = "block" *) q8_24_t  bg_lut [0:5000];
     initial begin
         $readmemh("bg_lut.mem", bg_lut);
     end
-    //---------------------------------------------------------------------------
-
-    logic signed [39:0] y0  [0:T];
-    logic signed [39:0] y1  [0:T];
-    logic signed [39:0] y2  [0:T];
-    logic signed [39:0] y3  [0:T];
-    logic signed [39:0] y4  [0:T];
-
-    logic signed [55:0] y0_sum [0:T];
-    logic signed [55:0]  y1_sum [0:T];
-    logic signed [55:0]  y2_sum [0:T];
-    logic signed [55:0]  y3_sum [0:T];
-    logic signed [55:0]  y4_sum [0:T];
-
-    // logic signed [55:0] y0_hold, y1_hold, y2_hold, y3_hold, y4_hold;
-
-initial begin
-    y0[0] = 40'sd13421773; ///0.8
-    y1[0] = 40'sd5033165;  //0.3
-    y2[0] = 40'sd6710886;  //0.4
-    y3[0] = 40'sd10066330;  //0.6
-    y4[0] = 40'sd11744051; //0.7
-end 
-
-initial begin
-    for (int i = 1; i <= T; i++) begin
-        y0[i] = 0;
-        y1[i] = 0;
-        y2[i] = 0;
-        y3[i] = 0;
-        y4[i] = 0;
-    end
-end
-
-initial begin
-    for (int i = 0; i <= T; i++) begin
-        y0_sum[i] = 0;
-        y1_sum[i] = 0;
-        y2_sum[i] = 0;
-        y3_sum[i] = 0;
-        y4_sum[i] = 0;
-    end
-end
-
+//---------------------------------------------------------------------------
 
 logic [12:0] om;
 
 logic [12:0] r;
 
 logic signed [71:0] acc0, acc1, acc2, acc3, acc4; //do przechowywania w danej chwili wartosci neuronow
+logic signed [39:0] y0, y1, y2, y3, y4;
 
 q8_24_t tanh_y0_reg, tanh_y1_reg, tanh_y2_reg, tanh_y3_reg, tanh_y4_reg;
 q8_24_t sin_y0_reg,  sin_y1_reg,  sin_y2_reg,  sin_y3_reg,  sin_y4_reg;
 
-// logic valid_tanh0_reg, valid_tanh1_reg, valid_tanh2_reg, valid_tanh3_reg, valid_tanh4_reg;
-// logic valid_sin0_reg,  valid_sin1_reg,  valid_sin2_reg,  valid_sin3_reg,  valid_sin4_reg;
 
-q8_24_t pipe_y0, pipe_y1, pipe_y2, pipe_y3, pipe_y4;
+// q8_24_t current_y0;
+// q8_24_t current_y1;
+// q8_24_t current_y2;
+// q8_24_t current_y3;
+// q8_24_t current_y4;
 
-q8_24_t current_y0;
-q8_24_t current_y1;
-q8_24_t current_y2;
-q8_24_t current_y3;
-q8_24_t current_y4;
+logic signed [39:0]  current_y0;
+logic signed [39:0]  current_y1;
+logic signed [39:0]  current_y2;
+logic signed [39:0]  current_y3;
+logic signed [39:0]  current_y4;
+logic signed [55:0] y0sum_rd, y1sum_rd, y2sum_rd, y3sum_rd, y4sum_rd;
+logic [12:0] ys_rd_addr;
+
+logic [12:0] write_addr;       
+logic wr_en_ys;    
 
 
-//---------------WEIGHTS MATRIX----------------------------------
-q8_24_t weights [0:N-1][0:N-1];
-initial begin
-    weights[0][0] = 32'sd0;
-    weights[0][1] = -32'sd5033165;   // -3.0 * 2^24
-    weights[0][2] = -32'sd13421773;  // -0.8
-    weights[0][3] = -32'sd10066330;  // -0.6
-    weights[0][4] = 32'sd0;
+logic signed [55:0] ys_in [0:4];
+logic signed [55:0] ys_out [0:4];
 
-    weights[1][0] = -32'sd50331648;  // -3.0
-    weights[1][1] = 32'sd0;
-    weights[1][2] = 32'sd33554432;   // 2.0
-    weights[1][3] = 32'sd0;
-    weights[1][4] = 32'sd6710886;   // 0.4
+generate
+    for (genvar i = 0; i < 5; i++) begin : gen_ys_ram
+        bram_gen #(.WIDTH(56), .DEPTH(T+1)) ram_inst (
+            .clk(clk),
+            .wr_en(wr_en_ys),
+            .wr_addr(write_addr),
+            .data_in(ys_in[i]),
+            .rd_addr(ys_rd_addr), 
+            .data_out(ys_out[i])
+        );
+    end
+endgenerate
 
-    
-    weights[2][0] = 32'sd28521267; //1.7
-    weights[2][1] = -32'sd6710886;  //-0.4
-    weights[2][2] = 32'sd50331648;  //3.0
-    weights[2][3] = 32'sd0;
-    weights[2][4] = 32'sd0;
+assign current_y0 = y0;
+assign current_y1 = y1;
+assign current_y2 = y2;
+assign current_y3 = y3;
+assign current_y4 = y4;
 
-    
-    weights[3][0] = 32'sd11744051; //0.7
-    weights[3][1] = 32'sd0;
-    weights[3][2] = 32'sd0;  
-    weights[3][3] = 32'sd0;
-    weights[3][4] = 32'sd0; 
+assign y0sum_rd = 56'($signed(ys_out[0]));
+assign y1sum_rd = 56'($signed(ys_out[1]));
+assign y2sum_rd = 56'($signed(ys_out[2]));
+assign y3sum_rd = 56'($signed(ys_out[3]));
+assign y4sum_rd = 56'($signed(ys_out[4]));
 
-    
-    weights[4][0] = 32'sd0;  //0
-    weights[4][1] = 32'sd28521267; //1.7
-    weights[4][2] = 32'sd0;   // 0
-    weights[4][3] = 32'sd0;
-    weights[4][4] = 32'sd0; 
-
-end
 //---------------------------------------
 
-typedef enum logic [4:0] {
+typedef enum logic [5:0] {
     WAIT, 
     INIT, 
+    INIT_RD_BRAM,
     INIT_WAIT_TO_SEND,
     SEND_NEURONS,
     WAIT_ONE_RESULT,
     LATCH_RESULT,
+    INIT_OM_WAIT,
     INIT_OM, // 
     //WAIT_PIPE,
     INIT_PIPE_MUL1, //
@@ -159,12 +127,19 @@ typedef enum logic [4:0] {
     OM_LATCH,
     //OM_WAIT,
     OM_SUM,
+    OM_SUM_DONE,
+    OM_SUM_SAVE,
     OM_G1G2,
     OM_GSINGTANH,
     OM_GSINGTANH_SHIFT,
+    OM_RD_BRAM,
+    RD_YOM_SUM,
+    RD_YOM_ADDR,
     OM_MUL1,
     OM_MUL2,
+    SEND_YOM,
     SEND, //wysylanie do fifo
+    WAIT_UART,
     STOP
 } state_t;
 
@@ -173,8 +148,8 @@ state_t state;
 
 //---------------------------------------
 
-localparam TANH_LATENCY = 12;  //tanh delay
-localparam SIN_LATENCY  = 12;  
+localparam TANH_LATENCY = 13;  //tanh delay
+localparam SIN_LATENCY  = 13;  
 
 logic start_pipe;
 logic [2:0] neuron_num; 
@@ -267,7 +242,7 @@ logic signed [39:0] m20_shift, m21_shift, m22_shift;
 logic signed [39:0] m30_shift;
 logic signed [39:0] m41_shift;
 
-logic signed [79:0] mul_0, mul_1, mul_2, mul_3, mul_4;
+logic signed [87:0] mul_0, mul_1, mul_2, mul_3, mul_4;
 logic signed [71:0] scaled_0, scaled_1, scaled_2, scaled_3, scaled_4;
 
 q8_24_t f1 = 32'sd0;
@@ -282,35 +257,28 @@ logic signed [47:0] G1tanh, G2sin;
 logic signed [39:0] G1r0, G2r0;
 logic signed [71:0] G1_tmp, G2_tmp;
 
-always_comb begin
-    if(state inside {OM_START, OM_WAIT_TO_SEND, OM_START2, OM_MUL1, OM_MUL2, OM_SUM, OM_GSINGTANH, OM_G1G2, OM_LATCH, OM_WAIT_ONE})begin //(om > 0 && om <= T) begin // OM_WAIT,
-        current_y0 = y0[om];
-        current_y1 = y1[om];
-        current_y2 = y2[om];
-        current_y3 = y3[om];
-        current_y4 = y4[om];
-
-    end else begin //if (om == 0)begin  //
-
-        current_y0 = y0[0];
-        current_y1 = y1[0];
-        current_y2 = y2[0];
-        current_y3 = y3[0];
-        current_y4 = y4[0];
-    end
-end
-
-
 logic [3:0] wait_cnt;
+logic signed [39:0] y0_init, y1_init, y2_init, y3_init, y4_init;
+logic [31:0] dt_counter;
 
 always_ff @(posedge clk) begin
     if (rst) begin
+
+        // variables to get time of calculations
+        dt_counter <= 0;
+
+        // iteration variables
         om <= 0;
         r <= 0;
+
         sample_send <= 0;
+        wr_en_ys <= 0;
+
         start_pipe <= 0;
         wait_cnt <= 0;
+        ys_rd_addr<=0;
 
+    // variables needed to calculate neurons y0-y4
         tmp1 <= 0; 
         tmp2 <= 0; 
         tmp1_shift <= 0;
@@ -361,6 +329,10 @@ always_ff @(posedge clk) begin
         state <= WAIT;
 
     end else begin
+
+        if(state != INIT_OM_WAIT && state != STOP && state != WAIT_UART &&  state != SEND) begin
+            dt_counter <= dt_counter +1;
+        end 
         sample_send <=0;
         case (state)
 
@@ -368,11 +340,29 @@ always_ff @(posedge clk) begin
             if(start) state <=INIT;
         INIT: begin
 
+            y0 <= 40'sd13421773; //0.8
+            y1 <= 40'sd5033165;  //0.3
+            y2 <= 40'sd6710886;  //0.4
+            y3 <= 40'sd10066330;  //0.6
+            y4 <= 40'sd11744051; //0.7
+
+
+            y0_init <= 40'sd13421773;
+            y1_init <= 40'sd5033165;
+            y2_init <= 40'sd6710886;
+            y3_init <= 40'sd10066330;
+            y4_init <= 40'sd11744051;
+
+            write_addr <= 0;     
+
+            state <= INIT_RD_BRAM; 
+        end 
+
+        INIT_RD_BRAM: begin
             neuron_num <= 0;
             start_pipe <= 0;//1;
-
             state <= INIT_WAIT_TO_SEND;
-        end 
+        end
 
         INIT_WAIT_TO_SEND: begin
             start_pipe <= 1;
@@ -401,6 +391,7 @@ always_ff @(posedge clk) begin
             2: begin tanh_y2_reg<=tanh_out; sin_y2_reg<=sin_out; end
             3: begin tanh_y3_reg<=tanh_out; sin_y3_reg<=sin_out; end
             4: begin tanh_y4_reg<=tanh_out; sin_y4_reg<=sin_out; end
+            default: state <= LATCH_RESULT;
         endcase
 
         if (neuron_num == 4) begin
@@ -497,34 +488,29 @@ always_ff @(posedge clk) begin
 
 
        INIT_PIPE_SUM: begin
-
-        // $display("INIT_PIPE_SUM: y1sum=%f = -y1[0](%f) + m10(%f) + m12(%f) + m14(%f)",
-        //     real'(-y1[0] + m10_shift + m12_shift + m14_shift)/16777216.0,
-        //     real'(y1[0])/16777216.0,
-        //     real'(m10_shift)/16777216.0,
-        //     real'(m12_shift)/16777216.0,
-        //     real'(m14_shift)/16777216.0);
             
-            y0_sum[0] <= -y0[0] + m01_shift + m02_shift + m03_shift; // 40
-            y1_sum[0] <= -y1[0] + m10_shift + m12_shift + m14_shift + f1;
-            y2_sum[0] <= -y2[0] + m20_shift + m21_shift + m22_shift;
-            y3_sum[0] <= -y3[0] + m30_shift + G2sin + f3; 
-            y4_sum[0] <= -y4[0] + m41_shift + G1tanh; //32, 40, 48
+            ys_in[0] <= -y0_init + m01_shift + m02_shift + m03_shift; // 40
+            ys_in[1] <= -y1_init + m10_shift + m12_shift + m14_shift + f1;
+            ys_in[2] <= -y2_init + m20_shift + m21_shift + m22_shift;
+            ys_in[3] <= -y3_init + m30_shift + G2sin + f3; 
+            ys_in[4] <= -y4_init + m41_shift + G1tanh; //32, 40, 48
+
+            wr_en_ys <= 1'b1;  
+            write_addr <= 0;   //om=0
 
             om <= 1;
-            state <= INIT_OM;
+            state <= INIT_OM_WAIT;
+       end
+
+       INIT_OM_WAIT: begin
+        wr_en_ys <= 1'b0; //disable
+        state<=INIT_OM;
        end
 //--------------for(om=1;om<T+1;om++)------------------------------
 
         INIT_OM: begin
-            // $display("INIT_OM: om=%0d r=%0d", om, r);
-            // $display("y0[0] = %f, current_y0 = %f, m01 = %f, m02 = %f, m03 = %f, y0_sum[0] = %f\n", real'(y0[0])/16777216.0, real'(current_y0)/16777216.0, real'(m01_shift)/16777216.0, real'(m02_shift)/16777216.0,  real'(m03_shift)/16777216.0, real'(y0_sum[0])/16777216.0);
-            // $display("y1[0] = %f, current_y1 = %f, m10 = %f, m12 = %f, f1 = %f, y1_sum[0] = %f\n", real'(y1[0])/16777216.0, real'(current_y1)/16777216.0, real'(m10_shift)/16777216.0, real'(m12_shift)/16777216.0,  real'(f1)/16777216.0, real'(y1_sum[0])/16777216.0);
-            // $display("y2[0] = %f, current_y2 = %f, m20 = %f, m21 = %f, m22 = %f, y2_sum[0] = %f\n", real'(y2[0])/16777216.0, real'(current_y2)/16777216.0, real'(m20_shift)/16777216.0, real'(m21_shift)/16777216.0,  real'(m22_shift)/16777216.0, real'(y2_sum[0])/16777216.0);
-            // $display("y3[0] = %f, current_y3 = %f, m30 = %f, G2sin = %f, f3 = %f, y3_sum[0] = %f\n", real'(y3[0])/16777216.0, real'(current_y3)/16777216.0, real'(m30_shift)/16777216.0, real'(G2sin)/16777216.0,  real'(f3)/16777216.0, real'(y3_sum[0])/16777216.0);
-            // $display("y4[0] = %f, current_y4 = %f, m41 = %f, G1tanh = %f, y4_sum[0] = %f\n", real'(y4[0])/16777216.0, real'(current_y4)/16777216.0, real'(m41_shift)/16777216.0, real'(G1tanh)/16777216.0, real'(y4_sum[0])/16777216.0);
 
-
+            dt_counter <= 0;
             acc0 <= 0; //w kazdej iteracji om na poczatku daje 0
             acc1 <= 0;
             acc2 <= 0;
@@ -532,14 +518,20 @@ always_ff @(posedge clk) begin
             acc4 <= 0;
 
             r <= 1;
-            state <= MUL_ACC;//LOOP_R;
+            ys_rd_addr <= 0;
+            state <= OM_RD_BRAM;//LOOP_R;
         end
+
+        OM_RD_BRAM:begin
+            state <= MUL_ACC;
+        end
+
         MUL_ACC: begin 
-            mul_0 <= (y0_sum[r-1]) * (bg_lut[(om - r)]); //48 + 32 = 80
-            mul_1 <= (y1_sum[r-1]) * (bg_lut[(om - r)]);
-            mul_2 <= (y2_sum[r-1]) * (bg_lut[(om - r)]);
-            mul_3 <= (y3_sum[r-1]) * (bg_lut[(om - r)]);
-            mul_4 <= (y4_sum[r-1]) * (bg_lut[(om - r)]);
+            mul_0 <= (y0sum_rd) * (bg_lut[(om - r)]); //48 + 32 = 80
+            mul_1 <= (y1sum_rd) * (bg_lut[(om - r)]);
+            mul_2 <= (y2sum_rd) * (bg_lut[(om - r)]);
+            mul_3 <= (y3sum_rd) * (bg_lut[(om - r)]);
+            mul_4 <= (y4sum_rd) * (bg_lut[(om - r)]);
 
             state <= SHIIFT;
         end
@@ -583,15 +575,21 @@ always_ff @(posedge clk) begin
                 state <= FINALIZE;
             end else begin
                 r <= r + 1;
-                state <= MUL_ACC; 
-            end           
+                ys_rd_addr <= r; //r+1-1
+                state <= OM_RD_BRAM; 
+            end             
         end
 
-        FINALIZE: 
+    FINALIZE: 
         begin
-            $display("FINALIZE START: om=%0d", om);
+            // $display("FINALIZE START: om=%0d", om);
+            // $display("HDL y0[%0d] =%f, y1[%0d] = %f, y2[%0d] = %f, y3[%0d] = %f, y4[%0d] = %f", om, 
+            //     real' ($signed(acc0[39:0]) + $signed(y0[0])) /16777216.0, om,real' ($signed(acc1[39:0]) + $signed(y1[0])) /16777216.0, om, real' ($signed(acc2[39:0])+ $signed(y2[0])) /16777216.0, om, ($signed(acc3[39:0]) + $signed(y3[0])) /16777216.0, om, ($signed(acc4[39:0]) + $signed(y4[0])) /16777216.0 );
+
+
+                        $display("FINALIZE START: om=%0d", om);
             $display("HDL y0[%0d] =%f, y1[%0d] = %f, y2[%0d] = %f, y3[%0d] = %f, y4[%0d] = %f", om, 
-                real' ($signed(acc0[39:0]) + $signed(y0[0])) /16777216.0, om,real' ($signed(acc1[39:0]) + $signed(y1[0])) /16777216.0, om, real' ($signed(acc2[39:0])+ $signed(y2[0])) /16777216.0, om, ($signed(acc3[39:0]) + $signed(y3[0])) /16777216.0, om, ($signed(acc4[39:0]) + $signed(y4[0])) /16777216.0 );
+                real' ($signed(acc0[39:0]) + $signed(y0_init)) /16777216.0, om,real' ($signed(acc1[39:0]) + $signed(y1_init)) /16777216.0, om, real' ($signed(acc2[39:0])+ $signed(y2_init)) /16777216.0, om, ($signed(acc3[39:0]) + $signed(y3_init)) /16777216.0, om, ($signed(acc4[39:0]) + $signed(y4_init)) /16777216.0 );
 
             // $display("acc0 full = %h, acc0[55:0] as float = %f, acc0[31:0] as float = %f, acc0[71:0] as float = %f",
             //     acc0,
@@ -599,20 +597,22 @@ always_ff @(posedge clk) begin
             //     real'(acc0[31:0]) / 16777216.0 ,
             //     real'(acc0[71:0]) / 16777216.0);
 
-            y0[om] <= $signed(acc0[39:0]) + $signed(y0[0]);
-            y1[om] <= $signed(acc1[39:0])   + $signed(y1[0]);
-            y2[om] <= $signed(acc2[39:0]) + $signed(y2[0]);
-            y3[om] <= $signed(acc3[39:0]) + $signed(y3[0]);
-            y4[om] <= $signed(acc4[39:0]) + $signed(y4[0]);
-
+            y0 <= $signed(acc0[39:0]) + $signed(y0_init);
+            y1 <= $signed(acc1[39:0]) + $signed(y1_init);
+            y2 <= $signed(acc2[39:0]) + $signed(y2_init);
+            y3 <= $signed(acc3[39:0]) + $signed(y3_init);
+            y4 <= $signed(acc4[39:0]) + $signed(y4_init);
             state <= OM_START; //SEND;
         end
-        OM_START: 
-        begin
-            
-            start_pipe <= 0; //1;
-            neuron_num <= 0; 
 
+    RD_YOM_ADDR: begin
+            neuron_num <= 0;
+            start_pipe <= 0;
+            state <= OM_START;
+        end
+
+    OM_START: 
+        begin
             state <= OM_WAIT_TO_SEND;
         end
 
@@ -629,7 +629,7 @@ always_ff @(posedge clk) begin
             state <= OM_WAIT_ONE;
         end
 
-        OM_WAIT_ONE: begin
+    OM_WAIT_ONE: begin
             start_pipe <= 0;
             wait_cnt <= wait_cnt +1;
             if(wait_cnt == SIN_LATENCY -1)begin  //-2
@@ -637,7 +637,7 @@ always_ff @(posedge clk) begin
             end
         end
 
-        OM_LATCH: begin
+    OM_LATCH: begin
 
         case (neuron_num)
             0: begin tanh_y0_reg<=tanh_out; sin_y0_reg<=sin_out; end
@@ -645,15 +645,20 @@ always_ff @(posedge clk) begin
             2: begin tanh_y2_reg<=tanh_out; sin_y2_reg<=sin_out; end
             3: begin tanh_y3_reg<=tanh_out; sin_y3_reg<=sin_out; end
             4: begin tanh_y4_reg<=tanh_out; sin_y4_reg<=sin_out; end
+            default: state <= OM_LATCH;
         endcase
         
         if (neuron_num == 4) begin
             neuron_num <= 0;
-            state <= OM_MUL1;  
+            state <= RD_YOM_SUM;  
         end else begin
             neuron_num <= neuron_num + 1;
             state <= OM_START2;
         end
+    end
+
+    RD_YOM_SUM: begin
+        state <= OM_MUL1;
     end
 
     //-----------------------------------------------------------
@@ -738,39 +743,63 @@ always_ff @(posedge clk) begin
             state <= OM_SUM;
         end
 
-            OM_SUM: begin
+        OM_SUM: begin
+            ys_in[0] <= -current_y0 + m01_shift + m02_shift + m03_shift; 
+            ys_in[1] <= -current_y1 + m10_shift+ m12_shift + m14_shift + f1;
+            ys_in[2] <= -current_y2 + m20_shift + m21_shift + m22_shift;
+            ys_in[3] <= -current_y3 + m30_shift + G2sin + f3; 
+            ys_in[4] <= -current_y4 + m41_shift + G1tanh; 
+            state <= OM_SUM_SAVE;
+       end
 
-            y0_sum[om] <= -y0[om] + m01_shift + m02_shift + m03_shift; 
-            y1_sum[om] <= -y1[om] + m10_shift+ m12_shift + m14_shift + f1;
-            y2_sum[om] <= -y2[om] + m20_shift + m21_shift + m22_shift;
-            y3_sum[om] <= -y3[om] + m30_shift + G2sin + f3; 
-            y4_sum[om] <= -y4[om] + m41_shift + G1tanh; 
+        OM_SUM_SAVE: begin
+            wr_en_ys <= 1'b1;
+            write_addr <= om;
+            state <= OM_SUM_DONE;
+       end
 
-            //om <= 1;
-            state <= SEND;
+       OM_SUM_DONE: begin
+            wr_en_ys <= 1'b0;
+            state<= SEND_YOM;
+       end
+
+       SEND_YOM: begin
+            state<=SEND;
        end
 
         SEND: begin
-            sample_out.y0 <= y0[om][31:0];
-            sample_out.y1 <= y1[om][31:0];
-            sample_out.y2 <= y2[om][31:0];
-            sample_out.y3 <= y3[om][31:0];
-            sample_out.y4 <= y4[om][31:0];
-            sample_out.dt <= 0;
 
-            sample_send <= 1;
+            if(!pause)begin
+                sample_send <=1;
+                sample_out.y0 <= current_y0[31:0];
+                sample_out.y1 <= current_y1[31:0];
+                sample_out.y2 <= current_y2[31:0];
+                sample_out.y3 <= current_y3[31:0];
+                sample_out.y4 <= current_y4[31:0];
+                sample_out.dt <= dt_counter;
+                state <= WAIT_UART;
             
-            //if(om==T)state <= WAIT;
-            if(om==T)state <= STOP;
-            else begin 
-                om <= om+1;
-                state <= INIT_OM; //znowu iteracja po om albo kuniec
             end
+        end
+        WAIT_UART: begin
+            sample_send <= 0; //waiting for uart
+            if(!pause) begin //uart starting to work
+                if(om == T) 
+                    state<= STOP;
+                else begin
+                    om<=om+1;
+                    ys_rd_addr <= 0;
+                    state <= INIT_OM;
+                end
+            end
+
         end
         STOP: begin
                 //$display("AAAAAAA");
 
         end
+
+        default: state <= WAIT;
 
         endcase
         
