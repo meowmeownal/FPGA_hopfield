@@ -148,7 +148,10 @@ initial begin
     logic signed [31:0] diff;
     logic valid_5;
     logic low_5, high_5;
-        logic [23:0] frac_3;
+    logic [23:0] frac_3;
+
+
+    q8_24_t y0_hold1;
     always_ff @(posedge clk) begin
         if (rst) begin
             valid_5 <= 0;
@@ -156,11 +159,14 @@ initial begin
             low_5 <= 0;
             high_5<=0;
             frac_3 <= 0;
+            y0_hold1 <= 0;
         end else begin
             low_5<=low_4;
             high_5<=high_4;
             valid_5 <= valid_4;
             frac_3<= frac_2;
+            y0_hold1 <= y0;
+
             diff <= (y1 - y0); // * frac_2; //32 + 24 =  56
 
         end 
@@ -169,6 +175,7 @@ initial begin
     logic valid_6;
     logic signed [55:0] diff_2;
     logic low_6, high_6;
+    q8_24_t y0_hold2;
     always_ff @(posedge clk) begin
         if(rst)begin
             valid_6 <= 0;
@@ -176,10 +183,12 @@ initial begin
             //y<= 0;
             low_6<=0;
             high_6<=0;
+            y0_hold2 <= 0;
         end else begin
             valid_6 <= valid_5;
             low_6<=low_5;
             high_6<=high_5;
+            y0_hold2 <= y0_hold1;
 
             diff_2 <= diff * $signed({1'b0, frac_3}); //diff *frac_2;        
         end
@@ -189,117 +198,130 @@ initial begin
     logic signed [31:0] diff_3;
     logic valid_7;
     logic low_7, high_7;
+    q8_24_t y0_hold3;
     always_ff @(posedge clk)begin
         if(rst)begin
             valid_7 <= 0;
             diff_3 <= 0;
             low_7<=0;
             high_7<=0;
+            y0_hold3<=0;
         end else begin
             valid_7 <= valid_6;
             low_7<=low_6;
             high_7<=high_6;
+            y0_hold3 <= y0_hold2;
             diff_3 <= diff_2 >>>24;
         end
     end
 
     logic low_8, high_8;
     logic valid_8;
+    q8_24_t y0_hold4;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_8<=0;
-            //y <=0;
             low_8 <= 0;
             high_8 <= 0;
+            y0_hold4<= 0;
         end else begin
             valid_8 <= valid_7;
 
             low_8<=low_7;
             high_8<=high_7;
-            // if (low_8)
-            //     y <= MONE;
-            // else if (high_8)
-            //     y <= ONE;
-            // else
-            //     y <= y0 + diff_3;
-                // y <= y0 + ((diff_2 + (1 <<< 23)) >>> 24);
+            y0_hold4 <= y0_hold3;
         end
     end
 
     logic low_9, high_9;
     logic valid_9;
+    q8_24_t y0_hold5;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_9<=0;
             low_9 <= 0;
             high_9 <= 0;
+            y0_hold5 <= 0;
         end else begin
             valid_9 <= valid_8;
             low_9<=low_8;
             high_9<=high_8;
+            y0_hold5 <= y0_hold4;
         end
     end
 
     logic low_10, high_10;
     logic valid_10;
+    q8_24_t y0_hold6;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_10<=0;
             low_10 <= 0;
             high_10 <= 0;
+            y0_hold6 <= 0;
         end else begin
             valid_10 <= valid_9;
             low_10<=low_9;
             high_10<=high_9;
+            y0_hold6 <= y0_hold5;
         end
     end
 
     logic low_11, high_11;
     logic valid_11;
+    q8_24_t y0_hold7;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_11<=0;
             low_11 <= 0;
             high_11 <= 0;
+            y0_hold7 <= 0;
         end else begin
             valid_11 <= valid_10;
             low_11<=low_10;
             high_11<=high_10;
+            y0_hold7 <= y0_hold6;
         end
     end
 
     logic low_12, high_12;
     logic valid_12;
+    q8_24_t y0_hold8;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_12<=0;
             low_12 <= 0;
             high_12 <= 0;
+            y0_hold8 <= 0;
         end else begin
             valid_12 <= valid_11;
             low_12<=low_11;
             high_12<=high_11;
+            y0_hold8 <= y0_hold7;
         end
     end
 
     logic low_13, high_13;
+    q8_24_t y0_hold9;
     always_ff @(posedge clk) begin
         if(rst )begin
             valid_out<=0;
             low_13 <= 0;
             high_13 <= 0;
             y <= 0;
+            y0_hold9 <= 0;
         end else begin
             valid_out <= valid_12;
             low_13<=low_12;
             high_13<=high_12;
+            y0_hold9 <= y0_hold8;
 
             if (low_13)
                 y <= MONE;
             else if (high_13)
                 y <= ONE;
             else
-                y <= y0 + diff_3;
+                y <= y0_hold9 + diff_3;
         end
     end
 
